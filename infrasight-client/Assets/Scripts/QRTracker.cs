@@ -19,6 +19,10 @@ public class QRTracker : MonoBehaviour
                 label.text = "the Cube";
                 label.color = Color.blue;
                 break;
+            default:
+                label.text = "Unknow ID";
+                label.color = Color.yellow;
+                break;
         }
     }
 

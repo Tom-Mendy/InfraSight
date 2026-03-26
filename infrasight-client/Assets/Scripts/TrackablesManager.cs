@@ -22,7 +22,7 @@ public class TrackablesManager : MonoBehaviour
         GameObject go = Instantiate(prefabToSpawn, trackable.transform);
         go.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-        QRTracker tracker = GetComponent<QRTracker>();
+        QRTracker tracker = go.GetComponent<QRTracker>();
         tracker.qrID = qrID;
     }
 
