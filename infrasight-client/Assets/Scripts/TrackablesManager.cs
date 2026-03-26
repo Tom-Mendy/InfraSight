@@ -4,19 +4,31 @@ using static OVRAnchor;
 
 public class TrackablesManager : MonoBehaviour
 {
-    [SerializeField] private GameObject spawnPrefab;
+    [SerializeField] private GameObject spawnSpherePrefab;
+    [SerializeField] private GameObject spawnCubePrefab;
     public void OnTrackableAdded(MRUKTrackable trackable)
     {
 
         if (trackable.TrackableType != TrackableType.QRCode) return;
+        string qrID = trackable.MarkerPayloadString;
         Debug.Log("I see a QRCode!");
 
-        GameObject go = Instantiate(spawnPrefab, trackable.transform);
+        GameObject prefabToSpawn = null;
+
+        if (qrID == "QR_Sphere")
+        {
+            prefabToSpawn = spawnSpherePrefab;
+        }
+        if (qrID == "QR_Cube")
+        {
+            prefabToSpawn = spawnCubePrefab;
+        }
+        GameObject go = Instantiate(prefabToSpawn, trackable.transform);
+        go.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
         QRTracker tracker = GetComponent<QRTracker>();
-        tracker.qrID = trackable.MarkerPayloadString;
+        tracker.qrID = qrID;
 
-        go.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
     }
 
     public void OnTrackableRemoved(MRUKTrackable trackable)

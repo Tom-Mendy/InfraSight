@@ -1262,7 +1262,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4477e1b08fc86aa438b60938c563b2fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TrackablesManager
-  spawnPrefab: {fileID: 2926123247158707329, guid: 9e2b9c5a6f76f8341a4c16127197361a, type: 3}
+  spawnSpherePrefab: {fileID: 2926123247158707329, guid: 9e2b9c5a6f76f8341a4c16127197361a, type: 3}
+  spawnCubePrefab: {fileID: 4807773206391910864, guid: 52e516e07d8b1e14eb968fde419733ad, type: 3}
 --- !u!1 &1720216342
 GameObject:
   m_ObjectHideFlags: 0
