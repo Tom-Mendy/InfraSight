@@ -23,3 +23,9 @@ type Snapshot struct {
 	Containers []Container `json:"containers"`
 	Timestamp  time.Time   `json:"timestamp"`
 }
+
+// ConnectionStep is sent as the first message when a client connects
+type ConnectionStep struct {
+	Type   string `json:"type"`    // "connection" or "qr_code"
+	QRCode string `json:"qr_code"` // base64 encoded PNG image
+}
