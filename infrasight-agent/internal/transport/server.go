@@ -1,10 +1,15 @@
 package transport
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"log/slog"
 	"net"
 	"net/http"
@@ -119,6 +124,77 @@ func (s *Server) QRCodeASCII() (string, error) {
 	return code.ToSmallString(false), nil
 }
 
+// QRCodePayloadJSON returns JSON for the QR code (without Name field)
+func (s *Server) QRCodePayloadJSON() (string, error) {
+	qrPayload := s.qrPayload.ToQRCodePayload()
+	raw, err := json.Marshal(qrPayload)
+	if err != nil {
+		return "", fmt.Errorf("marshal qr code payload: %w", err)
+	}
+	return string(raw), nil
+}
+
+// QRPngInverted generates an inverted QR code PNG (colors inverted)
+func (s *Server) QRPngInverted() ([]byte, error) {
+	content, err := s.QRCodePayloadJSON()
+	if err != nil {
+		return nil, err
+	}
+	code, err := qrcode.New(content, qrcode.Medium)
+	if err != nil {
+		return nil, fmt.Errorf("build qr code: %w", err)
+	}
+
+	png, err := code.PNG(256)
+	if err != nil {
+		return nil, fmt.Errorf("encode qr code to png: %w", err)
+	}
+
+	// Invert the colors
+	inverted, err := invertImage(png)
+	if err != nil {
+		return nil, fmt.Errorf("invert qr code colors: %w", err)
+	}
+
+	return inverted, nil
+}
+
+// invertImage inverts the colors of a PNG image (black -> white, white -> black)
+func invertImage(pngData []byte) ([]byte, error) {
+	img, err := png.Decode(bytes.NewReader(pngData))
+	if err != nil {
+		return nil, fmt.Errorf("decode png: %w", err)
+	}
+
+	bounds := img.Bounds()
+	inverted := image.NewRGBA(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			// Convert from 16-bit to 8-bit
+			r8 := uint8(r >> 8)
+			g8 := uint8(g >> 8)
+			b8 := uint8(b >> 8)
+			a8 := uint8(a >> 8)
+			// Invert: 255 - value
+			inverted.SetRGBA(x, y, color.RGBA{
+				R: 255 - r8,
+				G: 255 - g8,
+				B: 255 - b8,
+				A: a8,
+			})
+		}
+	}
+
+	buf := new(bytes.Buffer)
+	if err := png.Encode(buf, inverted); err != nil {
+		return nil, fmt.Errorf("encode inverted png: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
+
 func (s *Server) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	s.registerRoutes(mux)
@@ -164,10 +240,10 @@ func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":          "ok",
-		"time":            time.Now().UTC(),
-		"machine":         s.qrPayload.Name,
-		"connections":     s.state.SubscriberCount(),
+		"status":           "ok",
+		"time":             time.Now().UTC(),
+		"machine":          s.qrPayload.Name,
+		"connections":      s.state.SubscriberCount(),
 		"websocket_target": s.qrPayload.WebSocketURL(),
 	})
 }
@@ -184,27 +260,18 @@ func (s *Server) handleState(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleQRPayload(w http.ResponseWriter, _ *http.Request) {
+	qrPayload := s.qrPayload.ToQRCodePayload()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"name": s.qrPayload.Name,
-		"ip":   s.qrPayload.IP,
-		"port": s.qrPayload.Port,
+		"ip":   qrPayload.IP,
+		"port": qrPayload.Port,
 		"ws":   s.qrPayload.WebSocketURL(),
 	})
 }
 
 func (s *Server) handleQRPng(w http.ResponseWriter, _ *http.Request) {
-	content, err := s.QRPayloadJSON()
+	png, err := s.QRPngInverted()
 	if err != nil {
-		s.logger.Error("failed to encode qr payload", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{
-			"error": "failed to generate qr payload",
-		})
-		return
-	}
-
-	png, err := qrcode.Encode(content, qrcode.Medium, 256)
-	if err != nil {
-		s.logger.Error("failed to render qr image", "error", err)
+		s.logger.Error("failed to generate inverted qr image", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "failed to generate qr image",
 		})
@@ -224,6 +291,21 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
+
+	// Send QR code as connection step
+	qrPng, err := s.QRPngInverted()
+	if err != nil {
+		s.logger.Error("failed to generate qr code for connection", "error", err)
+	} else {
+		connectionStep := models.ConnectionStep{
+			Type:   "qr_code",
+			QRCode: base64.StdEncoding.EncodeToString(qrPng),
+		}
+		if err := writeWebSocketJSON(conn, connectionStep); err != nil {
+			s.logger.Debug("websocket write failed sending qr code", "error", err)
+			return
+		}
+	}
 
 	subscriberID, updates := s.state.Subscribe(1)
 	defer s.state.Unsubscribe(subscriberID)
