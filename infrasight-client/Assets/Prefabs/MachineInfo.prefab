@@ -656,11 +656,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2926123247158707329, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       propertyPath: m_Name
-      value: MachineInfo Variant
+      value: MachineInfo
       objectReference: {fileID: 0}
     - target: {fileID: 3483384371177836371, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       propertyPath: m_Name
       value: Title
+      objectReference: {fileID: 0}
+    - target: {fileID: 5323610951860706458, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_Color.a
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       propertyPath: m_SizeDelta.x
@@ -669,6 +673,26 @@ PrefabInstance:
     - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       propertyPath: m_SizeDelta.y
       value: 200
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8171921875916847451, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       propertyPath: m_text
@@ -727,10 +751,44 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8331319620023948041, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
       insertIndex: -1
       addedObject: {fileID: 4192805539178871390}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 2926123247158707329, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 7950385522762621321}
   m_SourcePrefab: {fileID: 100100000, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+--- !u!1 &1418537093335281312 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2926123247158707329, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+  m_PrefabInstance: {fileID: 4266046220882848289}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &7950385522762621321
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1418537093335281312}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba122d234af5f934c99d5167355c0deb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MachineVisualization
+  nameText: {fileID: 5358287163708068730}
+  cpuText: {fileID: 6494692684943750779}
+  ramText: {fileID: 7839663572084643024}
 --- !u!224 &5236210147362847016 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8331319620023948041, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
   m_PrefabInstance: {fileID: 4266046220882848289}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &5358287163708068730 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 8171921875916847451, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+  m_PrefabInstance: {fileID: 4266046220882848289}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI

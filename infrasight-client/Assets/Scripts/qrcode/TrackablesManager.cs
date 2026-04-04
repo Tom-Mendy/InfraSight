@@ -93,7 +93,7 @@ public class TrackablesManager : MonoBehaviour
             {
                 "QR_Sphere" => spawnSpherePrefab,
                 "QR_Cube" => spawnCubePrefab,
-                _ => spawnSpherePrefab
+                _ => machineVisualizationPrefab
             };
 
             machineVisualization = Instantiate(prefabToSpawn, trackable.transform);
@@ -161,15 +161,24 @@ public class TrackablesManager : MonoBehaviour
             float normalizedCpu = Mathf.Clamp01(payload.machine.cpu / 100f);
             float normalizedRam = Mathf.Clamp01(payload.machine.ram / 100f);
 
-            // CPU controls size between 0.4 and 1.4 units.
-            float scale = Mathf.Lerp(0.4f, 1.4f, normalizedCpu);
-            machineVisualization.transform.localScale = new Vector3(scale, scale, scale);
-
-            Renderer renderer = machineVisualization.GetComponentInChildren<Renderer>();
-            if (renderer != null)
+            MachineVisualization machineVis = machineVisualization.GetComponent<MachineVisualization>();
+            if (machineVis != null)
             {
-                // RAM controls color from green (low) to red (high).
-                renderer.material.color = Color.Lerp(Color.green, Color.red, normalizedRam);
+                machineVis.UpdateVisualization(payload.machine);
+            }
+            else
+            {
+                Debug.LogWarning("Machine visualization prefab is missing the MachineVisualization component.");
+                // CPU controls size between 0.4 and 1.4 units.
+                float scale = Mathf.Lerp(0.4f, 1.4f, normalizedCpu);
+                machineVisualization.transform.localScale = new Vector3(scale, scale, scale);
+
+                Renderer renderer = machineVisualization.GetComponentInChildren<Renderer>();
+                if (renderer != null)
+                {
+                    // RAM controls color from green (low) to red (high).
+                    renderer.material.color = Color.Lerp(Color.green, Color.red, normalizedRam);
+                }
             }
         }
 
