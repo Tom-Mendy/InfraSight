@@ -11,6 +11,10 @@ public class QRTracker : MonoBehaviour
         Debug.Log($"Qr Traker started for QR ID: {qrID}");
         switch (qrID)
         {
+            case "CONNECTING":
+                label.text = "Connecting...";
+                label.color = Color.white;
+                break;
             case "QR_Sphere":
                 label.text = "the Sphere";
                 label.color = Color.red;
