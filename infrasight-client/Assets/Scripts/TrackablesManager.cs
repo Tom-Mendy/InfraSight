@@ -6,11 +6,21 @@ public class TrackablesManager : MonoBehaviour
 {
     [SerializeField] private GameObject spawnSpherePrefab;
     [SerializeField] private GameObject spawnCubePrefab;
-    public void OnTrackableAdded(MRUKTrackable trackable)
+
+    private ServerConnectionClient serverConnectionClient;
+
+    private void Awake()
+    {
+        serverConnectionClient = new ServerConnectionClient();
+    }
+
+    public async void OnTrackableAdded(MRUKTrackable trackable)
     {
         if (trackable.TrackableType != TrackableType.QRCode) return;
-        string qrID = trackable.MarkerPayloadString;
+        // string qrID = trackable.MarkerPayloadString;
+        string qrID = "{\"name\":\"Tom_Zeph-G-14\",\"ip\":\"192.168.245.1\",\"port\":8080}";
         Debug.Log($"I see a {qrID}!");
+        await serverConnectionClient.ConnectToServerAsync(qrID);
 
         GameObject prefabToSpawn = qrID switch
         {
@@ -30,4 +40,10 @@ public class TrackablesManager : MonoBehaviour
     {
 
     }
+
+    private void OnDestroy()
+    {
+        serverConnectionClient?.Dispose();
+    }
+
 }

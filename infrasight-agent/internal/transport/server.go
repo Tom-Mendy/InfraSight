@@ -292,6 +292,23 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	subscriberID, updates := s.state.Subscribe(1)
+	clientAddr := websocketClientAddress(r)
+	connectedAt := time.Now()
+	s.logger.Info("websocket client connected",
+		"remote_addr", clientAddr,
+		"user_agent", r.UserAgent(),
+		"active_connections", s.state.SubscriberCount(),
+	)
+	defer func() {
+		s.state.Unsubscribe(subscriberID)
+		s.logger.Info("websocket client disconnected",
+			"remote_addr", clientAddr,
+			"active_connections", s.state.SubscriberCount(),
+			"duration", time.Since(connectedAt).Round(time.Millisecond),
+		)
+	}()
+
 	// Send QR code as connection step
 	qrPng, err := s.QRPngInverted()
 	if err != nil {
@@ -306,9 +323,6 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	subscriberID, updates := s.state.Subscribe(1)
-	defer s.state.Unsubscribe(subscriberID)
 
 	done := make(chan struct{})
 	go s.readLoop(conn, done)
@@ -375,6 +389,21 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
+}
+
+func websocketClientAddress(r *http.Request) string {
+	if forwardedFor := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwardedFor != "" {
+		parts := strings.Split(forwardedFor, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+
+	return r.RemoteAddr
 }
 
 func resolveAdvertiseIP(bindHost, explicitAdvertiseIP string) (string, error) {
