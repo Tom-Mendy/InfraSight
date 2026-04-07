@@ -96,7 +96,7 @@ public class TrackablesManager : MonoBehaviour
             };
 
             machineVisualization = Instantiate(prefabToSpawn, trackable.transform);
-            machineVisualization.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            machineVisualization.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
 
             if (machineVisualization.TryGetComponent<QRTracker>(out var tracker))
             {
