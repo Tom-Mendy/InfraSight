@@ -3,7 +3,6 @@ package transport
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -292,19 +291,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Send QR code as connection step
-	qrPng, err := s.QRPngInverted()
-	if err != nil {
-		s.logger.Error("failed to generate qr code for connection", "error", err)
-	} else {
-		connectionStep := models.ConnectionStep{
-			Type:   "qr_code",
-			QRCode: base64.StdEncoding.EncodeToString(qrPng),
-		}
-		if err := writeWebSocketJSON(conn, connectionStep); err != nil {
-			s.logger.Debug("websocket write failed sending qr code", "error", err)
-			return
-		}
+	connectionStep := models.ConnectionStep{
+		Type:        "connection",
+		MachineName: s.qrPayload.Name,
+	}
+	if err := writeWebSocketJSON(conn, connectionStep); err != nil {
+		s.logger.Debug("websocket write failed sending machine name", "error", err)
+		return
 	}
 
 	subscriberID, updates := s.state.Subscribe(1)
@@ -326,7 +319,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if err := writeWebSocketJSON(conn, snapshot); err != nil {
+			streamSnapshot := models.ToStreamSnapshot(snapshot)
+			if err := writeWebSocketJSON(conn, streamSnapshot); err != nil {
 				s.logger.Debug("websocket write failed", "error", err)
 				return
 			}
