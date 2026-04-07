@@ -24,8 +24,32 @@ type Snapshot struct {
 	Timestamp  time.Time   `json:"timestamp"`
 }
 
-// ConnectionStep is sent as the first message when a client connects
+// ConnectionStep is sent once as the first WebSocket message.
 type ConnectionStep struct {
-	Type   string `json:"type"`    // "connection" or "qr_code"
-	QRCode string `json:"qr_code"` // base64 encoded PNG image
+	Type        string `json:"type"`
+	MachineName string `json:"machine_name"`
+}
+
+// StreamMachine omits static metadata and only sends changing metrics.
+type StreamMachine struct {
+	CPU float64 `json:"cpu"`
+	RAM float64 `json:"ram"`
+}
+
+// StreamSnapshot is the recurring message sent over WebSocket after the initial handshake.
+type StreamSnapshot struct {
+	Machine    StreamMachine `json:"machine"`
+	Containers []Container   `json:"containers"`
+	Timestamp  time.Time     `json:"timestamp"`
+}
+
+func ToStreamSnapshot(snapshot Snapshot) StreamSnapshot {
+	return StreamSnapshot{
+		Machine: StreamMachine{
+			CPU: snapshot.Machine.CPU,
+			RAM: snapshot.Machine.RAM,
+		},
+		Containers: snapshot.Containers,
+		Timestamp:  snapshot.Timestamp,
+	}
 }

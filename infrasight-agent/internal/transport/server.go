@@ -3,7 +3,6 @@ package transport
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -292,37 +291,17 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	subscriberID, updates := s.state.Subscribe(1)
-	clientAddr := websocketClientAddress(r)
-	connectedAt := time.Now()
-	s.logger.Info("websocket client connected",
-		"remote_addr", clientAddr,
-		"user_agent", r.UserAgent(),
-		"active_connections", s.state.SubscriberCount(),
-	)
-	defer func() {
-		s.state.Unsubscribe(subscriberID)
-		s.logger.Info("websocket client disconnected",
-			"remote_addr", clientAddr,
-			"active_connections", s.state.SubscriberCount(),
-			"duration", time.Since(connectedAt).Round(time.Millisecond),
-		)
-	}()
-
-	// Send QR code as connection step
-	qrPng, err := s.QRPngInverted()
-	if err != nil {
-		s.logger.Error("failed to generate qr code for connection", "error", err)
-	} else {
-		connectionStep := models.ConnectionStep{
-			Type:   "qr_code",
-			QRCode: base64.StdEncoding.EncodeToString(qrPng),
-		}
-		if err := writeWebSocketJSON(conn, connectionStep); err != nil {
-			s.logger.Debug("websocket write failed sending qr code", "error", err)
-			return
-		}
+	connectionStep := models.ConnectionStep{
+		Type:        "connection",
+		MachineName: s.qrPayload.Name,
 	}
+	if err := writeWebSocketJSON(conn, connectionStep); err != nil {
+		s.logger.Debug("websocket write failed sending machine name", "error", err)
+		return
+	}
+
+	subscriberID, updates := s.state.Subscribe(1)
+	defer s.state.Unsubscribe(subscriberID)
 
 	done := make(chan struct{})
 	go s.readLoop(conn, done)
@@ -340,7 +319,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			if err := writeWebSocketJSON(conn, snapshot); err != nil {
+			streamSnapshot := models.ToStreamSnapshot(snapshot)
+			if err := writeWebSocketJSON(conn, streamSnapshot); err != nil {
 				s.logger.Debug("websocket write failed", "error", err)
 				return
 			}

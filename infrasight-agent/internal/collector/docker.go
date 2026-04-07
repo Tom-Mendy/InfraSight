@@ -3,18 +3,21 @@ package collector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"infrasight-agent/internal/models"
+
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/client"
 )
 
 const (
-	dockerCommandTimeout = 2 * time.Second
+	dockerListTimeout  = 2 * time.Second
+	dockerStatsTimeout = 1500 * time.Millisecond
 )
 
 type noopDockerCollector struct{}
@@ -24,7 +27,7 @@ func (noopDockerCollector) CollectContainers(context.Context) ([]models.Containe
 }
 
 type DockerCollector struct {
-	dockerPath string
+	client *client.Client
 }
 
 func NewDockerCollector(enabled bool) (ContainerCollector, error) {
@@ -32,133 +35,102 @@ func NewDockerCollector(enabled bool) (ContainerCollector, error) {
 		return noopDockerCollector{}, nil
 	}
 
-	dockerPath, err := exec.LookPath("docker")
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, fmt.Errorf("docker cli not found: %w", err)
+		return nil, fmt.Errorf("create docker client: %w", err)
 	}
 
-	return &DockerCollector{dockerPath: dockerPath}, nil
+	return &DockerCollector{client: cli}, nil
 }
 
-func (c *DockerCollector) CollectContainers(ctx context.Context) ([]models.Container, error) {
-	containers, err := c.listContainers(ctx)
-	if err != nil {
-		return nil, err
+func (c *DockerCollector) Close() error {
+	if c.client == nil {
+		return nil
 	}
-
-	cpuByContainer := c.readRunningContainerCPU(ctx)
-	for i := range containers {
-		if cpu, ok := cpuByContainer[containers[i].ID]; ok {
-			containers[i].CPU = cpu
-		}
-	}
-
-	sort.Slice(containers, func(i, j int) bool {
-		return containers[i].Name < containers[j].Name
-	})
-	return containers, nil
+	return c.client.Close()
 }
 
-func (c *DockerCollector) listContainers(parent context.Context) ([]models.Container, error) {
-	ctx, cancel := context.WithTimeout(parent, dockerCommandTimeout)
-	defer cancel()
-
-	output, err := exec.CommandContext(ctx, c.dockerPath, "ps", "-a", "--format", "{{json .}}").Output()
-	if err != nil {
-		// Docker might be installed but daemon not running. In that case keep the agent alive.
+func (c *DockerCollector) CollectContainers(parent context.Context) ([]models.Container, error) {
+	if c.client == nil {
 		return []models.Container{}, nil
 	}
 
-	lines := splitNonEmptyLines(string(output))
-	containers := make([]models.Container, 0, len(lines))
-	for _, line := range lines {
-		row, err := parseDockerPSLine(line)
-		if err != nil {
-			continue
+	listCtx, cancel := context.WithTimeout(parent, dockerListTimeout)
+	defer cancel()
+
+	list, err := c.client.ContainerList(listCtx, container.ListOptions{All: true})
+	if err != nil {
+		if isDockerUnavailableError(err) {
+			return []models.Container{}, nil
+		}
+		return nil, fmt.Errorf("list docker containers: %w", err)
+	}
+
+	out := make([]models.Container, 0, len(list))
+	for _, item := range list {
+		status := normalizeContainerStatus(item.State, item.Status)
+		cpuUsage := 0.0
+
+		if status == "running" {
+			statsCtx, statsCancel := context.WithTimeout(parent, dockerStatsTimeout)
+			cpu, statsErr := c.collectContainerCPU(statsCtx, item.ID)
+			statsCancel()
+			if statsErr == nil {
+				cpuUsage = cpu
+			}
 		}
 
-		containers = append(containers, models.Container{
-			ID:     shortID(row.ID),
-			Name:   row.Name,
-			Status: normalizeStatus(row.State),
-			CPU:    0,
+		out = append(out, models.Container{
+			ID:     shortID(item.ID),
+			Name:   containerName(item.Names, item.ID),
+			Status: status,
+			CPU:    cpuUsage,
 		})
 	}
 
-	return containers, nil
-}
-
-func (c *DockerCollector) readRunningContainerCPU(parent context.Context) map[string]float64 {
-	ctx, cancel := context.WithTimeout(parent, dockerCommandTimeout)
-	defer cancel()
-
-	output, err := exec.CommandContext(ctx, c.dockerPath, "stats", "--no-stream", "--format", "{{json .}}").Output()
-	if err != nil {
-		return map[string]float64{}
-	}
-
-	result := make(map[string]float64)
-	for _, line := range splitNonEmptyLines(string(output)) {
-		row, err := parseDockerStatsLine(line)
-		if err != nil {
-			continue
-		}
-		result[shortID(row.ID)] = parsePercent(row.CPUPercent)
-	}
-	return result
-}
-
-func splitNonEmptyLines(raw string) []string {
-	parts := strings.Split(raw, "\n")
-	out := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
-}
-
-func parseDockerPSLine(line string) (dockerPSLine, error) {
-	return parseJSONObjectLine[dockerPSLine](line)
-}
-
-func parseDockerStatsLine(line string) (dockerStatsLine, error) {
-	return parseJSONObjectLine[dockerStatsLine](line)
-}
-
-func parseJSONObjectLine[T any](line string) (T, error) {
-	var out T
-	if err := jsonUnmarshal(line, &out); err != nil {
-		return out, err
-	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
 	return out, nil
 }
 
-func jsonUnmarshal(raw string, out any) error {
-	decoder := strings.NewReader(raw)
-	return json.NewDecoder(decoder).Decode(out)
-}
-
-func normalizeStatus(state string) string {
-	state = strings.ToLower(strings.TrimSpace(state))
-	if state == "" {
-		return "unknown"
-	}
-	return state
-}
-
-func parsePercent(raw string) float64 {
-	raw = strings.TrimSpace(strings.TrimSuffix(raw, "%"))
-	if raw == "" {
-		return 0
-	}
-	value, err := strconv.ParseFloat(raw, 64)
+func (c *DockerCollector) collectContainerCPU(ctx context.Context, containerID string) (float64, error) {
+	stats, err := c.client.ContainerStats(ctx, containerID, false)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return value
+	defer stats.Body.Close()
+
+	var payload dockerStatsPayload
+	if err := json.NewDecoder(stats.Body).Decode(&payload); err != nil {
+		return 0, err
+	}
+
+	cpuDelta := float64(payload.CPUStats.CPUUsage.TotalUsage - payload.PreCPUStats.CPUUsage.TotalUsage)
+	systemDelta := float64(payload.CPUStats.SystemUsage - payload.PreCPUStats.SystemUsage)
+	if cpuDelta <= 0 || systemDelta <= 0 {
+		return 0, nil
+	}
+
+	onlineCPUs := float64(payload.CPUStats.OnlineCPUs)
+	if onlineCPUs == 0 {
+		onlineCPUs = float64(len(payload.CPUStats.CPUUsage.PerCPUUsage))
+	}
+	if onlineCPUs == 0 {
+		onlineCPUs = 1
+	}
+
+	return (cpuDelta / systemDelta) * onlineCPUs * 100.0, nil
+}
+
+func containerName(names []string, id string) string {
+	for _, name := range names {
+		trimmed := strings.TrimPrefix(strings.TrimSpace(name), "/")
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return shortID(id)
 }
 
 func shortID(id string) string {
@@ -168,13 +140,57 @@ func shortID(id string) string {
 	return id[:12]
 }
 
-type dockerPSLine struct {
-	ID    string `json:"ID"`
-	Name  string `json:"Names"`
-	State string `json:"State"`
+func normalizeContainerStatus(state, statusText string) string {
+	state = strings.ToLower(strings.TrimSpace(state))
+	if state != "" {
+		return state
+	}
+
+	statusText = strings.ToLower(strings.TrimSpace(statusText))
+	switch {
+	case strings.HasPrefix(statusText, "up"):
+		return "running"
+	case strings.HasPrefix(statusText, "exited"), strings.HasPrefix(statusText, "created"), strings.HasPrefix(statusText, "dead"):
+		return "stopped"
+	default:
+		if statusText == "" {
+			return "unknown"
+		}
+		return statusText
+	}
 }
 
-type dockerStatsLine struct {
-	ID         string `json:"ID"`
-	CPUPercent string `json:"CPUPerc"`
+func isDockerUnavailableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Keep agent alive when Docker daemon/socket is unavailable.
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "cannot connect to the docker daemon") ||
+		strings.Contains(lower, "error during connect") ||
+		strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "no such file or directory") ||
+		strings.Contains(lower, "the system cannot find the file specified")
+}
+
+type dockerStatsPayload struct {
+	CPUStats struct {
+		CPUUsage struct {
+			TotalUsage  uint64   `json:"total_usage"`
+			PerCPUUsage []uint64 `json:"percpu_usage"`
+		} `json:"cpu_usage"`
+		SystemUsage uint64 `json:"system_cpu_usage"`
+		OnlineCPUs  uint32 `json:"online_cpus"`
+	} `json:"cpu_stats"`
+	PreCPUStats struct {
+		CPUUsage struct {
+			TotalUsage uint64 `json:"total_usage"`
+		} `json:"cpu_usage"`
+		SystemUsage uint64 `json:"system_cpu_usage"`
+	} `json:"precpu_stats"`
 }
