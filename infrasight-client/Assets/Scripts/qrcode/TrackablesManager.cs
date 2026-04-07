@@ -123,6 +123,7 @@ public class TrackablesManager : MonoBehaviour
             machineVisualization = null;
         }
 
+
         foreach (GameObject container in containerVisualizations.Values)
         {
             if (container != null)
@@ -161,7 +162,7 @@ public class TrackablesManager : MonoBehaviour
 
             if (machineVisualization.TryGetComponent<MachineVisualization>(out var machineVis))
             {
-                machineVis.UpdateVisualization(payload.machine);
+                machineVis.UpdateMachineChart(payload);
             }
             else
             {
