@@ -371,6 +371,21 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+func websocketClientAddress(r *http.Request) string {
+	if forwardedFor := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwardedFor != "" {
+		parts := strings.Split(forwardedFor, ",")
+		if len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+
+	if realIP := strings.TrimSpace(r.Header.Get("X-Real-IP")); realIP != "" {
+		return realIP
+	}
+
+	return r.RemoteAddr
+}
+
 func resolveAdvertiseIP(bindHost, explicitAdvertiseIP string) (string, error) {
 	explicitAdvertiseIP = strings.TrimSpace(explicitAdvertiseIP)
 	if explicitAdvertiseIP != "" {
