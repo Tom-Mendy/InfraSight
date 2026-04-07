@@ -12,9 +12,9 @@ public class TrackablesManager : MonoBehaviour
     [SerializeField] private GameObject feedbackPrefab;
     private GameObject feedbackInstance;
     private GameObject machineVisualization;
-    private readonly Dictionary<string, GameObject> containerVisualizations = new Dictionary<string, GameObject>();
+    private readonly Dictionary<string, GameObject> containerVisualizations = new();
 
-    private readonly object payloadLock = new object();
+    private readonly object payloadLock = new();
     private ServerDataPayload pendingPayload;
 
     private ServerConnectionClient serverConnectionClient;
@@ -70,8 +70,7 @@ public class TrackablesManager : MonoBehaviour
             feedbackInstance = Instantiate(feedbackPrefab, trackable.transform);
             feedbackInstance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-            QRTracker feedbackTracker = feedbackInstance.GetComponent<QRTracker>();
-            if (feedbackTracker != null)
+            if (feedbackInstance.TryGetComponent<QRTracker>(out var feedbackTracker))
             {
                 feedbackTracker.qrID = "CONNECTING";
             }
@@ -99,8 +98,7 @@ public class TrackablesManager : MonoBehaviour
             machineVisualization = Instantiate(prefabToSpawn, trackable.transform);
             machineVisualization.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
 
-            QRTracker tracker = machineVisualization.GetComponent<QRTracker>();
-            if (tracker != null)
+            if (machineVisualization.TryGetComponent<QRTracker>(out var tracker))
             {
                 tracker.qrID = qrID;
             }
@@ -161,8 +159,7 @@ public class TrackablesManager : MonoBehaviour
             float normalizedCpu = Mathf.Clamp01(payload.machine.cpu / 100f);
             float normalizedRam = Mathf.Clamp01(payload.machine.ram / 100f);
 
-            MachineVisualization machineVis = machineVisualization.GetComponent<MachineVisualization>();
-            if (machineVis != null)
+            if (machineVisualization.TryGetComponent<MachineVisualization>(out var machineVis))
             {
                 machineVis.UpdateVisualization(payload.machine);
             }
@@ -182,7 +179,7 @@ public class TrackablesManager : MonoBehaviour
             }
         }
 
-        HashSet<string> activeContainerIds = new HashSet<string>();
+        HashSet<string> activeContainerIds = new();
         if (payload.container != null)
         {
             for (int i = 0; i < payload.container.Length; i++)
@@ -208,8 +205,7 @@ public class TrackablesManager : MonoBehaviour
                 float angle = (360f / Mathf.Max(1, payload.container.Length)) * i;
                 float radius = 0.8f;
                 Vector3 offset = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), 0.2f, Mathf.Sin(angle * Mathf.Deg2Rad)) * radius;
-                containerGo.transform.localPosition = machineVisualization.transform.localPosition + offset;
-                containerGo.transform.localRotation = Quaternion.identity;
+                containerGo.transform.SetLocalPositionAndRotation(machineVisualization.transform.localPosition + offset, Quaternion.identity);
                 containerGo.transform.localScale = Vector3.one * 0.2f;
 
                 Renderer containerRenderer = containerGo.GetComponentInChildren<Renderer>();
@@ -220,7 +216,7 @@ public class TrackablesManager : MonoBehaviour
             }
         }
 
-        List<string> staleIds = new List<string>();
+        List<string> staleIds = new();
         foreach (string containerId in containerVisualizations.Keys)
         {
             if (!activeContainerIds.Contains(containerId))
