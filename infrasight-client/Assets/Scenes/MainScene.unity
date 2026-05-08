@@ -1345,6 +1345,10 @@ MonoBehaviour:
   spawnCubePrefab: {fileID: 4807773206391910864, guid: 52e516e07d8b1e14eb968fde419733ad, type: 3}
   machineVisualizationPrefab: {fileID: 611080030969583199, guid: a8a9861330d09164782135ce0cc7cffb, type: 3}
   feedbackPrefab: {fileID: 2926123247158707329, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+  enableTestMode: 1
+  testQrPayloads:
+  - '{"name":"Local Agent","ip":"127.0.0.1","port":8080}'
+  testMachineSpacing: 1.5
 --- !u!1 &1720216342
 GameObject:
   m_ObjectHideFlags: 0
