@@ -24,6 +24,8 @@ type Snapshot struct {
 	Timestamp  time.Time   `json:"timestamp"`
 }
 
+const connectionMessageType = "connection"
+
 // ConnectionStep is sent once as the first WebSocket message.
 type ConnectionStep struct {
 	Type        string `json:"type"`
@@ -43,7 +45,14 @@ type StreamSnapshot struct {
 	Timestamp  time.Time     `json:"timestamp"`
 }
 
-func ToStreamSnapshot(snapshot Snapshot) StreamSnapshot {
+func NewConnectionStep(machineName string) ConnectionStep {
+	return ConnectionStep{
+		Type:        connectionMessageType,
+		MachineName: machineName,
+	}
+}
+
+func NewStreamSnapshot(snapshot Snapshot) StreamSnapshot {
 	return StreamSnapshot{
 		Machine: StreamMachine{
 			CPU: snapshot.Machine.CPU,
@@ -52,4 +61,8 @@ func ToStreamSnapshot(snapshot Snapshot) StreamSnapshot {
 		Containers: snapshot.Containers,
 		Timestamp:  snapshot.Timestamp,
 	}
+}
+
+func ToStreamSnapshot(snapshot Snapshot) StreamSnapshot {
+	return NewStreamSnapshot(snapshot)
 }

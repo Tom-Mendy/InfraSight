@@ -1,62 +1,70 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 
 public class ServerConnectionClient : IDisposable
 {
-    public event Action<string> MessageReceived;
+    public event Action<ServerConnection, ServerDataPayload> PayloadReceived;
 
-    private ClientWebSocket webSocket;
-    private string connectedEndpoint;
-    private CancellationTokenSource listenCancellationTokenSource;
-    private Task listenTask;
+    private readonly Dictionary<string, ServerConnection> connections = new();
 
-    public async Task<bool> ConnectToServerAsync(string qrPayload)
+    public async Task<ServerConnection> ConnectToServerAsync(string qrPayload)
     {
         if (!TryParseConnectionInfo(qrPayload, out QrConnectionInfo connectionInfo))
         {
             Debug.LogWarning($"Skipping QR payload because it does not contain connection data: '{qrPayload}'");
-            return false;
+            return null;
         }
 
-        string endpoint = $"ws://{connectionInfo.ip}:{connectionInfo.port}/ws";
-        if (webSocket != null)
-        // if (webSocket != null && webSocket.State == WebSocketState.Open && connectedEndpoint == endpoint)
+        string endpoint = BuildEndpoint(connectionInfo);
+        if (connections.TryGetValue(endpoint, out ServerConnection existingConnection))
         {
-            return webSocket.State == WebSocketState.Open;
+            if (existingConnection.IsOpen)
+            {
+                return existingConnection;
+            }
+
+            existingConnection.PayloadReceived -= OnConnectionPayloadReceived;
+            existingConnection.Dispose();
+            connections.Remove(endpoint);
         }
 
-        await DisconnectAsync("Switching QR target");
+        var connection = new ServerConnection(connectionInfo, endpoint);
+        connection.PayloadReceived += OnConnectionPayloadReceived;
+        connections[endpoint] = connection;
 
-        webSocket = new ClientWebSocket();
-        listenCancellationTokenSource = new CancellationTokenSource();
-
-        try
+        bool connected = await connection.ConnectAsync();
+        if (connected)
         {
-            await webSocket.ConnectAsync(new Uri(endpoint), CancellationToken.None);
-            connectedEndpoint = endpoint;
-            Debug.Log($"Connected to websocket server at {endpoint}");
-            listenTask = ListenForMessagesAsync(webSocket, listenCancellationTokenSource.Token);
-            return true;
+            return connection;
         }
-        catch (Exception exception)
-        {
-            Debug.LogError($"Failed to connect to websocket server at {endpoint}: {exception.Message}");
-            webSocket.Dispose();
-            webSocket = null;
-            connectedEndpoint = null;
-            listenCancellationTokenSource.Dispose();
-            listenCancellationTokenSource = null;
-            return false;
-        }
+
+        connection.PayloadReceived -= OnConnectionPayloadReceived;
+        connection.Dispose();
+        connections.Remove(endpoint);
+        return null;
     }
 
-    private static bool TryParseConnectionInfo(string qrPayload, out QrConnectionInfo connectionInfo)
+    public static string BuildEndpoint(QrConnectionInfo connectionInfo)
+    {
+        string scheme = string.IsNullOrWhiteSpace(connectionInfo.scheme) ? "ws" : connectionInfo.scheme.Trim();
+        string path = string.IsNullOrWhiteSpace(connectionInfo.path) ? "/ws" : connectionInfo.path.Trim();
+        if (!path.StartsWith("/"))
+        {
+            path = "/" + path;
+        }
+
+        return $"{scheme}://{connectionInfo.ip}:{connectionInfo.port}{path}";
+    }
+
+    public static bool TryParseConnectionInfo(string qrPayload, out QrConnectionInfo connectionInfo)
     {
         connectionInfo = null;
         if (string.IsNullOrWhiteSpace(qrPayload))
@@ -66,27 +74,11 @@ public class ServerConnectionClient : IDisposable
 
         string trimmed = qrPayload.Trim();
 
-        // Preferred payload format from docs: {"name":"...","ip":"...","port":8080}
         if (trimmed.StartsWith("{"))
         {
-            try
-            {
-                QrConnectionInfo parsed = JsonConvert.DeserializeObject<QrConnectionInfo>(trimmed);
-                if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ip) && parsed.port > 0)
-                {
-                    connectionInfo = parsed;
-                    return true;
-                }
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-
-            return false;
+            return TryParseJsonConnectionInfo(trimmed, out connectionInfo);
         }
 
-        // Also accept direct websocket URL payloads like ws://192.168.1.10:8080/ws
         if (Uri.TryCreate(trimmed, UriKind.Absolute, out Uri uri)
             && (string.Equals(uri.Scheme, "ws", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(uri.Scheme, "wss", StringComparison.OrdinalIgnoreCase))
@@ -97,13 +89,14 @@ public class ServerConnectionClient : IDisposable
             {
                 name = uri.Host,
                 ip = uri.Host,
-                port = uri.Port
+                port = uri.Port,
+                scheme = uri.Scheme,
+                path = string.IsNullOrWhiteSpace(uri.AbsolutePath) ? "/ws" : uri.AbsolutePath
             };
 
             return true;
         }
 
-        // Also accept compact host:port payloads like 192.168.1.10:8080
         string[] parts = trimmed.Split(':');
         if (parts.Length == 2
             && !string.IsNullOrWhiteSpace(parts[0])
@@ -121,6 +114,102 @@ public class ServerConnectionClient : IDisposable
         }
 
         return false;
+    }
+
+    private static bool TryParseJsonConnectionInfo(string json, out QrConnectionInfo connectionInfo)
+    {
+        connectionInfo = null;
+        try
+        {
+            QrConnectionInfo parsed = JsonConvert.DeserializeObject<QrConnectionInfo>(json);
+            if (parsed != null && !string.IsNullOrWhiteSpace(parsed.ip) && parsed.port > 0)
+            {
+                connectionInfo = parsed;
+                return true;
+            }
+
+            JObject parsedObject = JObject.Parse(json);
+            string ws = parsedObject.Value<string>("ws");
+            if (!string.IsNullOrWhiteSpace(ws)
+                && Uri.TryCreate(ws, UriKind.Absolute, out Uri uri)
+                && !string.IsNullOrWhiteSpace(uri.Host)
+                && uri.Port > 0)
+            {
+                connectionInfo = new QrConnectionInfo
+                {
+                    name = parsedObject.Value<string>("name") ?? uri.Host,
+                    ip = uri.Host,
+                    port = uri.Port,
+                    scheme = uri.Scheme,
+                    path = string.IsNullOrWhiteSpace(uri.AbsolutePath) ? "/ws" : uri.AbsolutePath
+                };
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private void OnConnectionPayloadReceived(ServerConnection connection, ServerDataPayload payload)
+    {
+        PayloadReceived?.Invoke(connection, payload);
+    }
+
+    public void Dispose()
+    {
+        foreach (ServerConnection connection in connections.Values)
+        {
+            connection.PayloadReceived -= OnConnectionPayloadReceived;
+            connection.Dispose();
+        }
+
+        connections.Clear();
+    }
+}
+
+public class ServerConnection : IDisposable
+{
+    public event Action<ServerConnection, ServerDataPayload> PayloadReceived;
+
+    public string Endpoint { get; }
+    public string MachineName { get; private set; }
+    public bool IsOpen => webSocket != null && webSocket.State == WebSocketState.Open;
+
+    private ClientWebSocket webSocket;
+    private CancellationTokenSource listenCancellationTokenSource;
+    private Task listenTask;
+
+    public ServerConnection(QrConnectionInfo connectionInfo, string endpoint)
+    {
+        Endpoint = endpoint;
+        MachineName = string.IsNullOrWhiteSpace(connectionInfo.name) ? connectionInfo.ip : connectionInfo.name;
+    }
+
+    public async Task<bool> ConnectAsync()
+    {
+        webSocket = new ClientWebSocket();
+        listenCancellationTokenSource = new CancellationTokenSource();
+
+        try
+        {
+            await webSocket.ConnectAsync(new Uri(Endpoint), CancellationToken.None);
+            Debug.Log($"Connected to websocket server at {Endpoint}");
+            listenTask = ListenForMessagesAsync(webSocket, listenCancellationTokenSource.Token);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"Failed to connect to websocket server at {Endpoint}: {exception.Message}");
+            webSocket.Dispose();
+            webSocket = null;
+            listenCancellationTokenSource.Dispose();
+            listenCancellationTokenSource = null;
+            return false;
+        }
     }
 
     private async Task ListenForMessagesAsync(ClientWebSocket socket, CancellationToken cancellationToken)
@@ -141,7 +230,6 @@ public class ServerConnectionClient : IDisposable
                     if (result.MessageType == WebSocketMessageType.Close)
                     {
                         Debug.Log("WebSocket server closed the connection.");
-                        connectedEndpoint = null;
                         return;
                     }
 
@@ -156,7 +244,7 @@ public class ServerConnectionClient : IDisposable
 
                 string message = Encoding.UTF8.GetString(messageStream.ToArray());
                 Debug.Log($"WebSocket message received: {message}");
-                MessageReceived?.Invoke(message);
+                HandleMessage(message);
             }
         }
         catch (OperationCanceledException)
@@ -165,6 +253,42 @@ public class ServerConnectionClient : IDisposable
         catch (Exception exception)
         {
             Debug.LogError($"WebSocket listen failed: {exception.Message}");
+        }
+    }
+
+    private void HandleMessage(string message)
+    {
+        try
+        {
+            JObject envelope = JObject.Parse(message);
+            string messageType = envelope.Value<string>("type");
+            if (string.Equals(messageType, "connection", StringComparison.OrdinalIgnoreCase))
+            {
+                string machineName = envelope.Value<string>("machine_name");
+                if (!string.IsNullOrWhiteSpace(machineName))
+                {
+                    MachineName = machineName;
+                }
+
+                return;
+            }
+
+            ServerDataPayload payload = envelope.ToObject<ServerDataPayload>();
+            if (payload?.machine == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.machine.name))
+            {
+                payload.machine.name = MachineName;
+            }
+
+            PayloadReceived?.Invoke(this, payload);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"Failed to process websocket message from {Endpoint}: {exception.Message}");
         }
     }
 
@@ -189,8 +313,6 @@ public class ServerConnectionClient : IDisposable
             webSocket.Dispose();
             webSocket = null;
         }
-
-        connectedEndpoint = null;
 
         if (listenTask != null)
         {

@@ -32,10 +32,20 @@ infrasight-agent/
 
 ## Data Model
 
+The WebSocket sends one handshake message first:
+
+```json
+{
+  "type": "connection",
+  "machine_name": "laptop"
+}
+```
+
+Then it streams metric snapshots. Static machine metadata is only sent in the handshake; recurring messages keep changing values only:
+
 ```json
 {
   "machine": {
-    "name": "laptop",
     "cpu": 42.1,
     "ram": 68.4
   },
@@ -56,8 +66,8 @@ infrasight-agent/
 - `GET /ws`: WebSocket stream of live snapshots.
 - `GET /state`: current latest snapshot (HTTP JSON).
 - `GET /health`: health/status info.
-- `GET /qr`: QR payload JSON (`name`, `ip`, `port`, `ws`).
-- `GET /qr.png`: PNG QR code of connection payload.
+- `GET /qr`: QR payload JSON (`ip`, `port`, `ws`).
+- `GET /qr.png`: PNG QR code of connection payload (`ip`, `port`).
 
 ## Run
 

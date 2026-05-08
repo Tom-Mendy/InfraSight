@@ -1,5 +1,4 @@
 using Meta.XR.MRUtilityKit;
-using Newtonsoft.Json;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -8,205 +7,234 @@ public class TrackablesManager : MonoBehaviour
     [SerializeField] private GameObject spawnSpherePrefab;
     [SerializeField] private GameObject spawnCubePrefab;
     [SerializeField] private GameObject machineVisualizationPrefab;
-
     [SerializeField] private GameObject feedbackPrefab;
-    private GameObject feedbackInstance;
-    private GameObject machineVisualization;
-    private readonly Dictionary<string, GameObject> containerVisualizations = new();
+    [SerializeField] private bool enableTestMode;
+    [SerializeField] private List<string> testQrPayloads = new();
+    [SerializeField] private float testMachineSpacing = 1.5f;
 
+    private readonly Dictionary<string, MachineVisualizationContext> machineVisualizations = new();
+    private readonly Dictionary<string, ServerDataPayload> pendingPayloads = new();
     private readonly object payloadLock = new();
-    private ServerDataPayload pendingPayload;
 
     private ServerConnectionClient serverConnectionClient;
 
     private void Awake()
     {
         serverConnectionClient = new ServerConnectionClient();
-        serverConnectionClient.MessageReceived += OnServerMessageReceived;
+        serverConnectionClient.PayloadReceived += OnServerPayloadReceived;
+    }
+
+    private void Start()
+    {
+        if (enableTestMode)
+        {
+            ConnectTestPayloads();
+        }
     }
 
     private void OnDestroy()
     {
         if (serverConnectionClient != null)
         {
-            serverConnectionClient.MessageReceived -= OnServerMessageReceived;
+            serverConnectionClient.PayloadReceived -= OnServerPayloadReceived;
             serverConnectionClient.Dispose();
         }
     }
 
-
-    private void OnServerMessageReceived(string message)
+    private void OnServerPayloadReceived(ServerConnection connection, ServerDataPayload payload)
     {
-        try
+        lock (payloadLock)
         {
-            ServerDataPayload payload = JsonConvert.DeserializeObject<ServerDataPayload>(message);
-            if (payload == null)
-            {
-                return;
-            }
-
-            lock (payloadLock)
-            {
-                pendingPayload = payload;
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Debug.LogWarning($"Failed to deserialize server payload: {ex.Message}");
+            pendingPayloads[connection.Endpoint] = payload;
         }
     }
 
     public async void OnTrackableAdded(MRUKTrackable trackable)
     {
-        if (trackable.TrackableType != OVRAnchor.TrackableType.QRCode) return;
-        string qrID = trackable.MarkerPayloadString;
-        qrID = "{\"name\":\"Tom_Zeph-G-14\",\"ip\":\"192.168.245.1\",\"port\":8080}"; // test mode with hardcoded QR payload
-
-        Debug.Log($"I see a {qrID}!");
-
-        // Instantiate feedback prefab while connecting
-        if (feedbackPrefab != null && feedbackInstance == null)
+        if (trackable.TrackableType != OVRAnchor.TrackableType.QRCode)
         {
-            feedbackInstance = Instantiate(feedbackPrefab, trackable.transform);
-            feedbackInstance.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
-
-            if (feedbackInstance.TryGetComponent<QRTracker>(out var feedbackTracker))
-            {
-                feedbackTracker.qrID = "CONNECTING";
-            }
+            return;
         }
 
-        bool connected = await serverConnectionClient.ConnectToServerAsync(qrID);
-
-        // Destroy feedback prefab after connection attempt
-        if (feedbackInstance != null)
+        string qrPayload = trackable.MarkerPayloadString;
+        if (!ServerConnectionClient.TryParseConnectionInfo(qrPayload, out QrConnectionInfo connectionInfo))
         {
-            Destroy(feedbackInstance);
-            feedbackInstance = null;
+            Debug.LogWarning("Scanned QR payload is not an InfraSight connection payload.");
+            return;
         }
 
-        if (connected)
+        string endpoint = ServerConnectionClient.BuildEndpoint(connectionInfo);
+        if (machineVisualizations.ContainsKey(endpoint))
         {
-            // Spawn metrics visualization prefab (sphere/cube) as before
-            GameObject prefabToSpawn = qrID switch
-            {
-                "QR_Sphere" => spawnSpherePrefab,
-                "QR_Cube" => spawnCubePrefab,
-                _ => machineVisualizationPrefab
-            };
-
-            machineVisualization = Instantiate(prefabToSpawn, trackable.transform);
-            machineVisualization.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.Euler(0f, 180f, 0f));
-
-            if (machineVisualization.TryGetComponent<QRTracker>(out var tracker))
-            {
-                tracker.qrID = qrID;
-            }
+            return;
         }
-        else
+
+        GameObject feedbackObject = CreateFeedback(trackable.transform);
+        ServerConnection connection = await serverConnectionClient.ConnectToServerAsync(qrPayload);
+        DestroyFeedback(feedbackObject);
+
+        if (connection == null)
         {
             Debug.LogWarning("Did not connect from this QR payload. It may not be a server connection QR code.");
+            return;
+        }
+
+        if (!machineVisualizations.ContainsKey(connection.Endpoint))
+        {
+            CreateMachineVisualization(connection, trackable.transform.position, trackable.transform.rotation);
         }
     }
 
     public void OnTrackableRemoved(MRUKTrackable trackable)
     {
-        if (feedbackInstance != null)
-        {
-            Destroy(feedbackInstance);
-            feedbackInstance = null;
-        }
+        // Connections and machine views persist after QR tracking is lost.
+    }
 
-        if (machineVisualization != null)
+    public async void ConnectTestPayloads()
+    {
+        for (int i = 0; i < testQrPayloads.Count; i++)
         {
-            Destroy(machineVisualization);
-            machineVisualization = null;
-        }
-
-
-        foreach (GameObject container in containerVisualizations.Values)
-        {
-            if (container != null)
+            string qrPayload = testQrPayloads[i];
+            ServerConnection connection = await serverConnectionClient.ConnectToServerAsync(qrPayload);
+            if (connection == null || machineVisualizations.ContainsKey(connection.Endpoint))
             {
-                Destroy(container);
+                continue;
             }
-        }
 
-        containerVisualizations.Clear();
+            Vector3 position = transform.position + new Vector3(i * testMachineSpacing, 0f, 0f);
+            CreateMachineVisualization(connection, position, transform.rotation);
+        }
     }
 
     private void Update()
     {
-        ServerDataPayload payloadToApply = null;
+        Dictionary<string, ServerDataPayload> payloadsToApply = null;
         lock (payloadLock)
         {
-            if (pendingPayload != null)
+            if (pendingPayloads.Count > 0)
             {
-                payloadToApply = pendingPayload;
-                pendingPayload = null;
+                payloadsToApply = new Dictionary<string, ServerDataPayload>(pendingPayloads);
+                pendingPayloads.Clear();
             }
         }
 
-        if (payloadToApply != null)
+        if (payloadsToApply == null)
         {
-            ApplyPayload(payloadToApply);
+            return;
+        }
+
+        foreach (KeyValuePair<string, ServerDataPayload> entry in payloadsToApply)
+        {
+            if (machineVisualizations.TryGetValue(entry.Key, out MachineVisualizationContext context))
+            {
+                ApplyPayload(context, entry.Value);
+            }
         }
     }
 
-    private void ApplyPayload(ServerDataPayload payload)
+    private GameObject CreateFeedback(Transform parent)
     {
-        if (machineVisualization != null && payload.machine != null)
+        if (feedbackPrefab == null)
         {
-            float normalizedCpu = Mathf.Clamp01(payload.machine.cpu / 100f);
-            float normalizedRam = Mathf.Clamp01(payload.machine.ram / 100f);
+            return null;
+        }
 
-            if (machineVisualization.TryGetComponent<MachineVisualization>(out var machineVis))
-            {
-                machineVis.UpdateMachineChart(payload);
-            }
-            else
-            {
-                Debug.LogWarning("Machine visualization prefab is missing the MachineVisualization component.");
-                // CPU controls size between 0.4 and 1.4 units.
-                float scale = Mathf.Lerp(0.4f, 1.4f, normalizedCpu);
-                machineVisualization.transform.localScale = new Vector3(scale, scale, scale);
+        GameObject feedbackObject = Instantiate(feedbackPrefab, parent);
+        feedbackObject.transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        if (feedbackObject.TryGetComponent<QRTracker>(out QRTracker feedbackTracker))
+        {
+            feedbackTracker.qrID = "CONNECTING";
+        }
 
-                Renderer renderer = machineVisualization.GetComponentInChildren<Renderer>();
-                if (renderer != null)
-                {
-                    // RAM controls color from green (low) to red (high).
-                    renderer.material.color = Color.Lerp(Color.green, Color.red, normalizedRam);
-                }
+        return feedbackObject;
+    }
+
+    private static void DestroyFeedback(GameObject feedbackObject)
+    {
+        if (feedbackObject != null)
+        {
+            Destroy(feedbackObject);
+        }
+    }
+
+    private void CreateMachineVisualization(ServerConnection connection, Vector3 position, Quaternion rotation)
+    {
+        GameObject prefabToSpawn = machineVisualizationPrefab != null ? machineVisualizationPrefab : spawnSpherePrefab;
+        if (prefabToSpawn == null)
+        {
+            Debug.LogWarning("No machine visualization prefab configured.");
+            return;
+        }
+
+        GameObject root = Instantiate(prefabToSpawn, transform);
+        root.transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(0f, 180f, 0f));
+
+        if (root.TryGetComponent<QRTracker>(out QRTracker tracker))
+        {
+            tracker.qrID = connection.MachineName;
+        }
+
+        machineVisualizations[connection.Endpoint] = new MachineVisualizationContext(root);
+    }
+
+    private void ApplyPayload(MachineVisualizationContext context, ServerDataPayload payload)
+    {
+        if (context.Root == null || payload?.machine == null)
+        {
+            return;
+        }
+
+        float normalizedCpu = Mathf.Clamp01(payload.machine.cpu / 100f);
+        float normalizedRam = Mathf.Clamp01(payload.machine.ram / 100f);
+
+        if (context.Root.TryGetComponent<MachineVisualization>(out MachineVisualization machineVis))
+        {
+            machineVis.UpdateMachineChart(payload);
+        }
+        else
+        {
+            float scale = Mathf.Lerp(0.4f, 1.4f, normalizedCpu);
+            context.Root.transform.localScale = new Vector3(scale, scale, scale);
+
+            Renderer renderer = context.Root.GetComponentInChildren<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = Color.Lerp(Color.green, Color.red, normalizedRam);
             }
         }
 
+        ApplyContainers(context, payload.containers);
+    }
+
+    private void ApplyContainers(MachineVisualizationContext context, ContainerDataPayload[] containers)
+    {
         HashSet<string> activeContainerIds = new();
-        if (payload.container != null)
+        if (containers != null)
         {
-            for (int i = 0; i < payload.container.Length; i++)
+            for (int i = 0; i < containers.Length; i++)
             {
-                ContainerDataPayload containerData = payload.container[i];
+                ContainerDataPayload containerData = containers[i];
                 if (containerData == null || string.IsNullOrWhiteSpace(containerData.id))
                 {
                     continue;
                 }
 
                 activeContainerIds.Add(containerData.id);
-                if (!containerVisualizations.TryGetValue(containerData.id, out GameObject containerGo) || containerGo == null)
+                if (!context.ContainerVisualizations.TryGetValue(containerData.id, out GameObject containerGo) || containerGo == null)
                 {
-                    if (spawnCubePrefab == null || machineVisualization == null)
+                    if (spawnCubePrefab == null)
                     {
                         continue;
                     }
 
-                    containerGo = Instantiate(spawnCubePrefab, machineVisualization.transform.parent);
-                    containerVisualizations[containerData.id] = containerGo;
+                    containerGo = Instantiate(spawnCubePrefab, context.Root.transform.parent);
+                    context.ContainerVisualizations[containerData.id] = containerGo;
                 }
 
-                float angle = (360f / Mathf.Max(1, payload.container.Length)) * i;
+                float angle = (360f / Mathf.Max(1, containers.Length)) * i;
                 float radius = 0.8f;
                 Vector3 offset = new Vector3(Mathf.Cos(angle * Mathf.Deg2Rad), 0.2f, Mathf.Sin(angle * Mathf.Deg2Rad)) * radius;
-                containerGo.transform.SetLocalPositionAndRotation(machineVisualization.transform.localPosition + offset, Quaternion.identity);
+                containerGo.transform.SetLocalPositionAndRotation(context.Root.transform.localPosition + offset, Quaternion.identity);
                 containerGo.transform.localScale = Vector3.one * 0.2f;
 
                 Renderer containerRenderer = containerGo.GetComponentInChildren<Renderer>();
@@ -218,7 +246,7 @@ public class TrackablesManager : MonoBehaviour
         }
 
         List<string> staleIds = new();
-        foreach (string containerId in containerVisualizations.Keys)
+        foreach (string containerId in context.ContainerVisualizations.Keys)
         {
             if (!activeContainerIds.Contains(containerId))
             {
@@ -228,14 +256,24 @@ public class TrackablesManager : MonoBehaviour
 
         foreach (string staleId in staleIds)
         {
-            GameObject staleObject = containerVisualizations[staleId];
+            GameObject staleObject = context.ContainerVisualizations[staleId];
             if (staleObject != null)
             {
                 Destroy(staleObject);
             }
 
-            containerVisualizations.Remove(staleId);
+            context.ContainerVisualizations.Remove(staleId);
         }
     }
 
+    private sealed class MachineVisualizationContext
+    {
+        public GameObject Root { get; }
+        public Dictionary<string, GameObject> ContainerVisualizations { get; } = new();
+
+        public MachineVisualizationContext(GameObject root)
+        {
+            Root = root;
+        }
+    }
 }

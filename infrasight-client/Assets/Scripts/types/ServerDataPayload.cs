@@ -4,7 +4,7 @@ using System;
 public class ServerDataPayload
 {
   public MachineDataPayload machine;
-  public ContainerDataPayload[] container;
+  public ContainerDataPayload[] containers;
   public DateTime timestamp;
 }
 
