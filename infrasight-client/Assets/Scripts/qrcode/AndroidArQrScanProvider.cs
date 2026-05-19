@@ -15,7 +15,7 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     [SerializeField] private float scanIntervalSeconds = 0.25f;
     [SerializeField] private int downsampleWidth = 640;
 
-    private readonly BarcodeReader barcodeReader = new()
+    private readonly BarcodeReaderGeneric barcodeReader = new()
     {
         AutoRotate = true,
         Options = new DecodingOptions
@@ -88,9 +88,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
             using NativeArray<byte> buffer = new(size, Allocator.Temp);
             cpuImage.Convert(conversionParams, buffer);
 
-            Color32[] pixels = new Color32[width * height];
-            NativeArray<Color32>.Copy(buffer.Reinterpret<Color32>(1), pixels, pixels.Length);
-            Result result = barcodeReader.Decode(pixels, width, height);
+            byte[] pixels = buffer.ToArray();
+            Result result = barcodeReader.Decode(pixels, width, height, RGBLuminanceSource.BitmapFormat.RGBA32);
             if (result == null)
             {
                 return;
