@@ -7,6 +7,8 @@ public class MachineVisualization : MonoBehaviour
     private const int MaxHistorySeconds = 60;
 
     [SerializeField] private TMP_Text nameText;
+    [SerializeField] private TMP_Text cpuText;
+    [SerializeField] private TMP_Text ramText;
     [SerializeField] private LineChart cpuChart;
     [SerializeField] private LineChart ramChart;
 
@@ -61,7 +63,27 @@ public class MachineVisualization : MonoBehaviour
 
     public void UpdateMachineChart(ServerDataPayload payload)
     {
-        if (cpuChart == null || ramChart == null || payload?.machine == null)
+        if (payload?.machine == null)
+        {
+            return;
+        }
+
+        if (nameText != null)
+        {
+            nameText.text = string.IsNullOrWhiteSpace(payload.machine.name) ? "Machine" : payload.machine.name;
+        }
+
+        if (cpuText != null)
+        {
+            cpuText.text = $"{Mathf.Clamp(payload.machine.cpu, 0f, 100f):0.#}% CPU";
+        }
+
+        if (ramText != null)
+        {
+            ramText.text = $"{Mathf.Clamp(payload.machine.ram, 0f, 100f):0.#}% RAM";
+        }
+
+        if (cpuChart == null || ramChart == null)
         {
             return;
         }

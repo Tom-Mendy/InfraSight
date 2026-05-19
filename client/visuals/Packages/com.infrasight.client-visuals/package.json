@@ -1,0 +1,12 @@
+{
+  "name": "com.infrasight.client-visuals",
+  "version": "0.1.0",
+  "displayName": "InfraSight Client Visuals",
+  "description": "Shared InfraSight Unity client visualizations, machine panels, charts, and default runtime prefabs.",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.infrasight.client-core": "file:../../../core/Packages/com.infrasight.client-core",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.xr.interaction.toolkit": "3.3.1"
+  }
+}

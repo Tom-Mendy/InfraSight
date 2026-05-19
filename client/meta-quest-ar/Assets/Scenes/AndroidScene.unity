@@ -464,10 +464,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::InfraSightQrClient
   qrScanProvider: {fileID: 1620976679}
-  spawnSpherePrefab: {fileID: 2926123247158707329, guid: 9e2b9c5a6f76f8341a4c16127197361a, type: 3}
-  spawnCubePrefab: {fileID: 4807773206391910864, guid: 52e516e07d8b1e14eb968fde419733ad, type: 3}
-  machineVisualizationPrefab: {fileID: 1418537093335281312, guid: fe0612bb80c3ac643bd4c6347c216a8a, type: 3}
-  feedbackPrefab: {fileID: 2926123247158707329, guid: 51d953edcddb84c41a7ee129489be861, type: 3}
+  spawnSpherePrefab: {fileID: 2926123247158707329, guid: 8f2806f2034b57a48a1f122c69b8f65d, type: 3}
+  spawnCubePrefab: {fileID: 4807773206391910864, guid: 6fea9e60b6b7a7245bd229d32c6cb1fb, type: 3}
+  machineVisualizationPrefab: {fileID: 611080030969583199, guid: a8a9861330d09164782135ce0cc7cffb, type: 3}
+  feedbackPrefab: {fileID: 2926123247158707329, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
   enableTestMode: 0
   testQrPayloads: []
   testMachineSpacing: 1.5

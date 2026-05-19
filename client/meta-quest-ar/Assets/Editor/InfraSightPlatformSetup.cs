@@ -10,6 +10,7 @@ public static class InfraSightPlatformSetup
     private const string MetaQuestDefine = "INFRASIGHT_META_QUEST";
     private const string AndroidArDefine = "INFRASIGHT_ANDROID_AR";
     private const string AndroidArScenePath = "Assets/Scenes/AndroidScene.unity";
+    private const string VisualsPrefabRoot = "Packages/com.infrasight.client-visuals/Runtime/Resources/InfraSight";
     private const string XrSettingsPath = "Assets/XR/XRGeneralSettingsPerBuildTarget.asset";
 
     [MenuItem("InfraSight/Platform/Configure Meta Quest")]
@@ -67,10 +68,10 @@ public static class InfraSightPlatformSetup
         SetObjectReference(qrProvider, "cameraManager", cameraManager);
         SetObjectReference(qrProvider, "spawnPoseSource", mainCamera.transform);
         SetObjectReference(qrClient, "qrScanProvider", qrProvider);
-        SetObjectReference(qrClient, "spawnSpherePrefab", LoadPrefab("Assets/Prefabs/Sphere.prefab"));
-        SetObjectReference(qrClient, "spawnCubePrefab", LoadPrefab("Assets/Prefabs/Cube.prefab"));
-        SetObjectReference(qrClient, "machineVisualizationPrefab", LoadPrefab("Assets/Prefabs/MachineInfo.prefab"));
-        SetObjectReference(qrClient, "feedbackPrefab", LoadPrefab("Assets/Prefabs/FeedBack.prefab"));
+        SetObjectReference(qrClient, "spawnSpherePrefab", LoadVisualPrefab("Sphere.prefab"));
+        SetObjectReference(qrClient, "spawnCubePrefab", LoadVisualPrefab("Cube.prefab"));
+        SetObjectReference(qrClient, "machineVisualizationPrefab", LoadVisualPrefab("DeviceInfo.prefab"));
+        SetObjectReference(qrClient, "feedbackPrefab", LoadVisualPrefab("FeedBack.prefab"));
         SetObjectReference(diagnostics, "cameraManager", cameraManager);
 
         EditorSceneManager.SaveScene(scene, AndroidArScenePath);
@@ -127,6 +128,11 @@ public static class InfraSightPlatformSetup
     private static GameObject LoadPrefab(string path)
     {
         return AssetDatabase.LoadAssetAtPath<GameObject>(path);
+    }
+
+    private static GameObject LoadVisualPrefab(string fileName)
+    {
+        return LoadPrefab($"{VisualsPrefabRoot}/{fileName}");
     }
 
     private static void SetObjectReference(UnityEngine.Object target, string propertyName, UnityEngine.Object value)

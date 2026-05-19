@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "com.infrasight.client-core": "file:../../core/Packages/com.infrasight.client-core",
+    "com.infrasight.client-visuals": "file:../../visuals/Packages/com.infrasight.client-visuals",
+    "com.monitor1394.xcharts": "https://github.com/XCharts-Team/XCharts.git",
     "com.unity.feature.development": "1.0.2",
     "com.unity.inputsystem": "1.18.0",
     "com.unity.learn.iet-framework": "5.0.2",

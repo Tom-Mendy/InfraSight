@@ -13,7 +13,6 @@ public class QRTracker : MonoBehaviour
 
     public void RefreshLabel()
     {
-        Debug.Log($"Qr Traker started for QR ID: {qrID}");
         if (label == null)
         {
             return;

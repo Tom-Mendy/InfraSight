@@ -8,6 +8,16 @@
         "com.unity.nuget.newtonsoft-json": "3.2.1"
       }
     },
+    "com.infrasight.client-visuals": {
+      "version": "file:../../visuals/Packages/com.infrasight.client-visuals",
+      "depth": 0,
+      "source": "local",
+      "dependencies": {
+        "com.infrasight.client-core": "file:../../../core/Packages/com.infrasight.client-core",
+        "com.unity.ugui": "2.0.0",
+        "com.unity.xr.interaction.toolkit": "3.3.1"
+      }
+    },
     "com.meta.xr.mrutilitykit": {
       "version": "85.0.0",
       "depth": 0,
