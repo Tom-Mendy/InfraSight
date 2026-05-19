@@ -1,12 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-#if INFRASIGHT_META_QUEST || UNITY_META_QUEST
-using Meta.XR.MRUtilityKit;
-#endif
-
-public class TrackablesManager : MonoBehaviour
+public class InfraSightQrClient : MonoBehaviour
 {
+    [SerializeField] private QrScanProviderBehaviour qrScanProvider;
     [SerializeField] private GameObject spawnSpherePrefab;
     [SerializeField] private GameObject spawnCubePrefab;
     [SerializeField] private GameObject machineVisualizationPrefab;
@@ -27,10 +24,25 @@ public class TrackablesManager : MonoBehaviour
             machineVisualizationPrefab,
             feedbackPrefab);
         orchestrator = new InfraSightConnectionOrchestrator(visualizationManager);
+
+        if (qrScanProvider == null)
+        {
+            qrScanProvider = GetComponent<QrScanProviderBehaviour>();
+        }
+
+        if (qrScanProvider != null)
+        {
+            qrScanProvider.QrDetected += OnQrDetected;
+        }
     }
 
     private void Start()
     {
+        if (qrScanProvider != null && qrScanProvider.IsSupported)
+        {
+            qrScanProvider.StartScanning();
+        }
+
         if (enableTestMode)
         {
             ConnectTestPayloads();
@@ -44,39 +56,26 @@ public class TrackablesManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        orchestrator?.Dispose();
-    }
-
-#if INFRASIGHT_META_QUEST || UNITY_META_QUEST
-    public void OnTrackableAdded(MRUKTrackable trackable)
-    {
-        if (trackable == null || trackable.TrackableType != OVRAnchor.TrackableType.QRCode)
+        if (qrScanProvider != null)
         {
-            return;
+            qrScanProvider.QrDetected -= OnQrDetected;
+            qrScanProvider.StopScanning();
         }
 
-        var pose = new Pose(trackable.transform.position, trackable.transform.rotation);
-        orchestrator.ConnectQrPayload(trackable.MarkerPayloadString, pose);
+        orchestrator?.Dispose();
     }
-
-    public void OnTrackableRemoved(MRUKTrackable trackable)
-    {
-        // Connections and machine views persist after QR tracking is lost.
-    }
-#else
-    public void OnTrackableRemoved(Object trackable)
-    {
-        // Connections and machine views persist after QR tracking is lost.
-    }
-#endif
 
     public void ConnectTestPayloads()
     {
         for (int i = 0; i < testQrPayloads.Count; i++)
         {
             Vector3 position = transform.position + new Vector3(i * testMachineSpacing, 0f, 0f);
-            var pose = new Pose(position, transform.rotation);
-            orchestrator.ConnectQrPayload(testQrPayloads[i], pose);
+            orchestrator.ConnectQrPayload(testQrPayloads[i], new Pose(position, transform.rotation));
         }
+    }
+
+    private void OnQrDetected(QrScanResult result)
+    {
+        orchestrator.ConnectQrPayload(result.Payload, result.Pose);
     }
 }

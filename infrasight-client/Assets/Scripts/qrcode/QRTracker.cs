@@ -5,10 +5,20 @@ public class QRTracker : MonoBehaviour
 {
     public string qrID;
     [SerializeField] private TMP_Text label;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+
+    private void Start()
+    {
+        RefreshLabel();
+    }
+
+    public void RefreshLabel()
     {
         Debug.Log($"Qr Traker started for QR ID: {qrID}");
+        if (label == null)
+        {
+            return;
+        }
+
         switch (qrID)
         {
             case "CONNECTING":
@@ -24,15 +34,9 @@ public class QRTracker : MonoBehaviour
                 label.color = Color.blue;
                 break;
             default:
-                label.text = "Unknow ID";
+                label.text = string.IsNullOrWhiteSpace(qrID) ? "Unknown ID" : qrID;
                 label.color = Color.yellow;
                 break;
         }
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
     }
 }
