@@ -178,7 +178,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3859a92a05d4f5d418cb6ca605290e74, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.XR.ARFoundation::UnityEngine.XR.ARFoundation.ARSession
   m_AttemptUpdate: 1
   m_MatchFrameRate: 1
@@ -227,9 +227,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.XR.CoreUtils::Unity.XR.CoreUtils.XROrigin
-  m_Camera: {fileID: 0}
+  m_Camera: {fileID: 1122888557}
   m_OriginBaseGameObject: {fileID: 663814976}
-  m_CameraFloorOffsetObject: {fileID: 0}
+  m_CameraFloorOffsetObject: {fileID: 44077908}
   m_RequestedTrackingOriginMode: 0
   m_CameraYOffset: 1.1176
 --- !u!4 &663814978
@@ -386,6 +386,7 @@ GameObject:
   - component: {fileID: 1620976681}
   - component: {fileID: 1620976680}
   - component: {fileID: 1620976679}
+  - component: {fileID: 1620976682}
   m_Layer: 0
   m_Name: InfraSight QR Client
   m_TagString: Untagged
@@ -405,6 +406,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 90c4498d39a94633a9f34f7ed0c5fd9a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AndroidArQrScanProvider
+  cameraManager: {fileID: 1122888555}
+  spawnPoseSource: {fileID: 1122888553}
+  scanIntervalSeconds: 0.25
+  downsampleWidth: 640
 --- !u!114 &1620976680
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -425,6 +430,19 @@ MonoBehaviour:
   enableTestMode: 0
   testQrPayloads: []
   testMachineSpacing: 1.5
+--- !u!114 &1620976682
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1620976678}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b50dbf2a337447638b4f752e1995c5da, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::AndroidArStartupDiagnostics
+  cameraManager: {fileID: 1122888555}
 --- !u!4 &1620976681
 Transform:
   m_ObjectHideFlags: 0

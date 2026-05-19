@@ -38,11 +38,7 @@ public sealed class InfraSightMachineVisualizationManager
 
         GameObject feedbackObject = Object.Instantiate(feedbackPrefab, rootTransform);
         feedbackObject.transform.SetPositionAndRotation(position, rotation);
-        if (feedbackObject.TryGetComponent<QRTracker>(out QRTracker feedbackTracker))
-        {
-            feedbackTracker.qrID = "CONNECTING";
-            feedbackTracker.RefreshLabel();
-        }
+        feedbackObject.SendMessage("SetQrId", "CONNECTING", SendMessageOptions.DontRequireReceiver);
 
         return feedbackObject;
     }
@@ -62,21 +58,9 @@ public sealed class InfraSightMachineVisualizationManager
             return;
         }
 
-        GameObject prefabToSpawn = machineVisualizationPrefab != null ? machineVisualizationPrefab : spawnSpherePrefab;
-        if (prefabToSpawn == null)
-        {
-            Debug.LogWarning("No machine visualization prefab configured.");
-            return;
-        }
-
-        GameObject root = Object.Instantiate(prefabToSpawn, rootTransform);
+        GameObject root = CreateMachineRoot(rootTransform);
         root.transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(0f, 180f, 0f));
-
-        if (root.TryGetComponent<QRTracker>(out QRTracker tracker))
-        {
-            tracker.qrID = connection.MachineName;
-            tracker.RefreshLabel();
-        }
+        root.SendMessage("SetQrId", connection.MachineName, SendMessageOptions.DontRequireReceiver);
 
         machineVisualizations[connection.Endpoint] = new MachineVisualizationContext(root);
     }
@@ -93,11 +77,8 @@ public sealed class InfraSightMachineVisualizationManager
         float normalizedCpu = Mathf.Clamp01(payload.machine.cpu / 100f);
         float normalizedRam = Mathf.Clamp01(payload.machine.ram / 100f);
 
-        if (context.Root.TryGetComponent<MachineVisualization>(out MachineVisualization machineVis))
-        {
-            machineVis.UpdateMachineChart(payload);
-        }
-        else
+        context.Root.SendMessage("UpdateMachineChart", payload, SendMessageOptions.DontRequireReceiver);
+        if (context.Root.GetComponentInChildren<Renderer>() != null)
         {
             float scale = Mathf.Lerp(0.4f, 1.4f, normalizedCpu);
             context.Root.transform.localScale = new Vector3(scale, scale, scale);
@@ -128,12 +109,7 @@ public sealed class InfraSightMachineVisualizationManager
                 activeContainerIds.Add(containerData.id);
                 if (!context.ContainerVisualizations.TryGetValue(containerData.id, out GameObject containerGo) || containerGo == null)
                 {
-                    if (spawnCubePrefab == null)
-                    {
-                        continue;
-                    }
-
-                    containerGo = Object.Instantiate(spawnCubePrefab, context.Root.transform.parent);
+                    containerGo = CreateContainerObject(context.Root.transform.parent);
                     context.ContainerVisualizations[containerData.id] = containerGo;
                 }
 
@@ -170,6 +146,33 @@ public sealed class InfraSightMachineVisualizationManager
 
             context.ContainerVisualizations.Remove(staleId);
         }
+    }
+
+    private GameObject CreateMachineRoot(Transform parent)
+    {
+        GameObject prefabToSpawn = machineVisualizationPrefab != null ? machineVisualizationPrefab : spawnSpherePrefab;
+        if (prefabToSpawn != null)
+        {
+            return Object.Instantiate(prefabToSpawn, parent);
+        }
+
+        GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        primitive.name = "InfraSight Machine";
+        primitive.transform.SetParent(parent, false);
+        return primitive;
+    }
+
+    private GameObject CreateContainerObject(Transform parent)
+    {
+        if (spawnCubePrefab != null)
+        {
+            return Object.Instantiate(spawnCubePrefab, parent);
+        }
+
+        GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        primitive.name = "InfraSight Container";
+        primitive.transform.SetParent(parent, false);
+        return primitive;
     }
 
     private sealed class MachineVisualizationContext

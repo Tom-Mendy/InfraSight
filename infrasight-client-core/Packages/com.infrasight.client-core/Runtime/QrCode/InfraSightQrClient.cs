@@ -17,6 +17,7 @@ public class InfraSightQrClient : MonoBehaviour
 
     private void Awake()
     {
+        LoadDefaultPrefabs();
         visualizationManager = new InfraSightMachineVisualizationManager(
             transform,
             spawnSpherePrefab,
@@ -77,5 +78,13 @@ public class InfraSightQrClient : MonoBehaviour
     private void OnQrDetected(QrScanResult result)
     {
         orchestrator.ConnectQrPayload(result.Payload, result.Pose);
+    }
+
+    private void LoadDefaultPrefabs()
+    {
+        spawnSpherePrefab ??= Resources.Load<GameObject>("InfraSight/Sphere");
+        spawnCubePrefab ??= Resources.Load<GameObject>("InfraSight/Cube");
+        feedbackPrefab ??= Resources.Load<GameObject>("InfraSight/FeedBack");
+        machineVisualizationPrefab ??= Resources.Load<GameObject>("InfraSight/MachineInfo");
     }
 }

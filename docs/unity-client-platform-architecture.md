@@ -2,7 +2,8 @@
 
 ## Résumé
 
-Le client Unity doit rester découpé en noyau commun et adaptateurs plateforme.
+Le client Unity est maintenant découpé en package core partagé et projets
+Unity plateforme séparés.
 La connexion avec l'agent, le parsing des QR codes, les DTOs réseau et
 les visualisations machines/containers ne doivent pas dépendre du matériel.
 
@@ -19,6 +20,15 @@ des symboles explicites :
 - `INFRASIGHT_ANDROID_AR`
 
 ## Découpage
+
+### Projets Unity
+
+- `infrasight-client-core/Packages/com.infrasight.client-core` : package Unity local partagé.
+- `infrasight-client` : base Meta Quest, avec Meta SDK/MRUK.
+- `infrasight-client-android-ar` : base Android AR propre, issue du template officiel Unity AR Mobile.
+
+Le projet Android AR ne doit pas recevoir le Meta SDK. Le projet Quest ne doit
+pas être utilisé pour produire l'APK Android mobile.
 
 ### Core agnostique
 
@@ -41,6 +51,11 @@ Composants principaux :
 - `InfraSightConnectionOrchestrator` : orchestration QR -> WebSocket -> payloads.
 - `InfraSightMachineVisualizationManager` : création et mise à jour des objets affichés.
 - `InfraSightQrClient` : point d'entrée scene-friendly pour brancher un provider QR.
+
+Le core peut afficher des primitives par défaut si aucun prefab n'est assigné.
+Les composants visuels optionnels comme `MachineVisualization` ou `QRTracker`
+restent dans les projets plateforme pour éviter de forcer XCharts/TMP dans le
+noyau.
 
 ### Contrat QR commun
 
@@ -99,12 +114,13 @@ Provider :
 
 Scène/profil :
 
-- `AR Session`;
-- `XR Origin`;
-- `AR Camera Background`;
-- `ARCameraManager`;
-- `InfraSightQrClient` + `AndroidArQrScanProvider`;
-- mêmes prefabs `MachineInfo`, `Cube`, `FeedBack`.
+- partir de la scène propre du template officiel AR Mobile;
+- ne pas copier l'ancienne scène Android de `infrasight-client`;
+- garder `AR Session`, `XR Origin`, `AR Camera Background` et `ARCameraManager`;
+- `AndroidArInfraSightBootstrapper` crée `InfraSightQrClient`,
+  `AndroidArQrScanProvider` et les diagnostics au lancement;
+- les prefabs InfraSight peuvent être ajoutés ensuite, mais la base doit rester
+  la scène template propre.
 
 Manifest Android AR :
 
@@ -130,23 +146,16 @@ Packages :
 - Garder les nouveaux scanners comme adaptateurs : scan -> event, puis core connecte.
 - Garder les visualisations communes : une nouvelle plateforme ne doit pas
   dupliquer `MachineVisualizationManager`.
-- Garder les manifests séparés par profil/build, car Quest et Android AR ont
-  des exigences incompatibles.
+- Garder les projets séparés, car Meta SDK ajoute des hooks Gradle/manifest qui
+  polluent le build Android mobile.
 
 ## Build et Setup
 
-Dans Unity, les menus Editor dédiés servent de point d'entrée :
-
-- `InfraSight/Platform/Configure Meta Quest`
-- `InfraSight/Platform/Configure Android AR`
-- `InfraSight/Platform/Create Android AR Scene`
-
-Le postprocessor Android applique le manifest adapté selon le symbole actif.
-
 Configuration attendue :
 
-- Quest : `INFRASIGHT_META_QUEST`, scène Meta/MRUK.
-- Android AR : `INFRASIGHT_ANDROID_AR`, scène AR Foundation/ARCore.
+- Quest : ouvrir `infrasight-client`, symbole `INFRASIGHT_META_QUEST`, scène Meta/MRUK.
+- Android AR : ouvrir `infrasight-client-android-ar`, symbole `INFRASIGHT_ANDROID_AR`, scène template AR Mobile.
+- Le package partagé est référencé par `file:../../infrasight-client-core/Packages/com.infrasight.client-core`.
 
 ## Tests et Validation
 
@@ -155,6 +164,9 @@ Validation rapide :
 ```powershell
 cd infrasight-client
 dotnet build .\infrasight-client.sln --no-restore
+
+cd ..\infrasight-client-android-ar
+dotnet build .\infrasight-client-android-ar.sln --no-restore
 ```
 
 Scénarios à garder couverts :

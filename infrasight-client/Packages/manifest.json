@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.infrasight.client-core": "file:../../infrasight-client-core/Packages/com.infrasight.client-core",
     "com.meta.xr.mrutilitykit": "85.0.0",
     "com.monitor1394.xcharts": "https://github.com/XCharts-Team/XCharts.git",
     "com.unity.ai.navigation": "2.0.12",
