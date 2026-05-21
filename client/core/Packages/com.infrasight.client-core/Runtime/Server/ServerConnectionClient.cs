@@ -11,11 +11,18 @@ using UnityEngine;
 
 public class ServerConnectionClient : IDisposable
 {
+    private static readonly TimeSpan DefaultConnectTimeout = TimeSpan.FromSeconds(8);
+
     public event Action<ServerConnection, ServerDataPayload> PayloadReceived;
 
     private readonly Dictionary<string, ServerConnection> connections = new();
 
-    public async Task<ServerConnection> ConnectToServerAsync(string qrPayload)
+    public Task<ServerConnection> ConnectToServerAsync(string qrPayload)
+    {
+        return ConnectToServerAsync(qrPayload, DefaultConnectTimeout);
+    }
+
+    public async Task<ServerConnection> ConnectToServerAsync(string qrPayload, TimeSpan connectTimeout)
     {
         if (!TryParseConnectionInfo(qrPayload, out QrConnectionInfo connectionInfo))
         {
@@ -40,7 +47,7 @@ public class ServerConnectionClient : IDisposable
         connection.PayloadReceived += OnConnectionPayloadReceived;
         connections[endpoint] = connection;
 
-        bool connected = await connection.ConnectAsync();
+        bool connected = await connection.ConnectAsync(connectTimeout);
         if (connected)
         {
             return connection;
@@ -189,17 +196,27 @@ public class ServerConnection : IDisposable
         MachineName = string.IsNullOrWhiteSpace(connectionInfo.name) ? connectionInfo.ip : connectionInfo.name;
     }
 
-    public async Task<bool> ConnectAsync()
+    public async Task<bool> ConnectAsync(TimeSpan timeout)
     {
         webSocket = new ClientWebSocket();
         listenCancellationTokenSource = new CancellationTokenSource();
 
         try
         {
-            await webSocket.ConnectAsync(new Uri(Endpoint), CancellationToken.None);
+            using var connectCancellationTokenSource = new CancellationTokenSource(timeout);
+            await webSocket.ConnectAsync(new Uri(Endpoint), connectCancellationTokenSource.Token);
             Debug.Log($"Connected to websocket server at {Endpoint}");
             listenTask = ListenForMessagesAsync(webSocket, listenCancellationTokenSource.Token);
             return true;
+        }
+        catch (OperationCanceledException exception)
+        {
+            Debug.LogError($"Timed out connecting to websocket server at {Endpoint} after {timeout.TotalSeconds:0.#}s: {exception.Message}");
+            webSocket.Dispose();
+            webSocket = null;
+            listenCancellationTokenSource.Dispose();
+            listenCancellationTokenSource = null;
+            return false;
         }
         catch (Exception exception)
         {

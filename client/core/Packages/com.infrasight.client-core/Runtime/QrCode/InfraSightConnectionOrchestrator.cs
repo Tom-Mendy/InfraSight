@@ -4,6 +4,8 @@ using UnityEngine;
 
 public sealed class InfraSightConnectionOrchestrator : IDisposable
 {
+    private const float FailedFeedbackLifetimeSeconds = 3f;
+
     private readonly InfraSightMachineVisualizationManager visualizationManager;
     private readonly Dictionary<string, ServerDataPayload> pendingPayloads = new();
     private readonly HashSet<string> connectingEndpoints = new();
@@ -33,16 +35,25 @@ public sealed class InfraSightConnectionOrchestrator : IDisposable
 
         connectingEndpoints.Add(endpoint);
         GameObject feedbackObject = visualizationManager.CreateFeedback(pose.position, pose.rotation);
-        ServerConnection connection = await serverConnectionClient.ConnectToServerAsync(qrPayload);
-        visualizationManager.DestroyFeedback(feedbackObject);
-        connectingEndpoints.Remove(endpoint);
+        ServerConnection connection = null;
+        try
+        {
+            connection = await serverConnectionClient.ConnectToServerAsync(qrPayload);
+        }
+        finally
+        {
+            connectingEndpoints.Remove(endpoint);
+        }
 
         if (connection == null)
         {
-            Debug.LogWarning("Did not connect from this QR payload. It may not be a server connection QR code.");
+            visualizationManager.SetFeedbackState(feedbackObject, "CONNECTION_FAILED");
+            visualizationManager.DestroyFeedback(feedbackObject, FailedFeedbackLifetimeSeconds);
+            Debug.LogWarning($"Did not connect from QR payload endpoint {endpoint}.");
             return;
         }
 
+        visualizationManager.DestroyFeedback(feedbackObject);
         visualizationManager.CreateMachineVisualization(connection, pose.position, pose.rotation);
     }
 

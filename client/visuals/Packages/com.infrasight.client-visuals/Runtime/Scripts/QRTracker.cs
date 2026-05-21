@@ -24,6 +24,10 @@ public class QRTracker : MonoBehaviour
                 label.text = "Connecting...";
                 label.color = Color.white;
                 break;
+            case "CONNECTION_FAILED":
+                label.text = "Connection failed";
+                label.color = Color.red;
+                break;
             case "QR_Sphere":
                 label.text = "the Sphere";
                 label.color = Color.red;

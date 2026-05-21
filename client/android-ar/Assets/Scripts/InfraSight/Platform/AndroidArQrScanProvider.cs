@@ -12,7 +12,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
 {
     [SerializeField] private ARCameraManager cameraManager;
     [SerializeField] private Transform spawnPoseSource;
-    [SerializeField] private float scanIntervalSeconds = 0.25f;
+    [SerializeField] private float scanIntervalSeconds = 0.5f;
+    [SerializeField] private float duplicatePayloadCooldownSeconds = 5f;
     [SerializeField] private int downsampleWidth = 640;
 
     private readonly BarcodeReaderGeneric barcodeReader = new()
@@ -26,6 +27,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     };
 
     private Coroutine scanCoroutine;
+    private string lastPayload;
+    private float lastPayloadTime = float.NegativeInfinity;
 
     public override bool IsSupported => cameraManager != null;
 
@@ -100,10 +103,24 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
                 return;
             }
 
+            if (IsDuplicatePayloadOnCooldown(result.Text))
+            {
+                return;
+            }
+
             Transform poseTransform = spawnPoseSource != null ? spawnPoseSource : cameraManager.transform;
             Vector3 position = poseTransform.position + poseTransform.forward;
+            lastPayload = result.Text;
+            lastPayloadTime = Time.unscaledTime;
             RaiseQrDetected(result.Text, new Pose(position, poseTransform.rotation));
         }
+    }
+
+    private bool IsDuplicatePayloadOnCooldown(string payload)
+    {
+        return !string.IsNullOrWhiteSpace(payload)
+            && payload == lastPayload
+            && Time.unscaledTime - lastPayloadTime < duplicatePayloadCooldownSeconds;
     }
 }
 #else

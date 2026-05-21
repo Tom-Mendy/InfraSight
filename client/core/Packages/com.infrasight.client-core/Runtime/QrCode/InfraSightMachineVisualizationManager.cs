@@ -45,9 +45,22 @@ public sealed class InfraSightMachineVisualizationManager
 
     public void DestroyFeedback(GameObject feedbackObject)
     {
+        DestroyFeedback(feedbackObject, 0f);
+    }
+
+    public void DestroyFeedback(GameObject feedbackObject, float delaySeconds)
+    {
         if (feedbackObject != null)
         {
-            Object.Destroy(feedbackObject);
+            Object.Destroy(feedbackObject, Mathf.Max(0f, delaySeconds));
+        }
+    }
+
+    public void SetFeedbackState(GameObject feedbackObject, string state)
+    {
+        if (feedbackObject != null)
+        {
+            feedbackObject.SendMessage("SetQrId", state, SendMessageOptions.DontRequireReceiver);
         }
     }
 

@@ -6575,7 +6575,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AndroidArQrScanProvider
   cameraManager: {fileID: 0}
   spawnPoseSource: {fileID: 0}
-  scanIntervalSeconds: 0.25
+  scanIntervalSeconds: 0.5
+  duplicatePayloadCooldownSeconds: 5
   downsampleWidth: 640
 --- !u!114 &1900000004
 MonoBehaviour:
