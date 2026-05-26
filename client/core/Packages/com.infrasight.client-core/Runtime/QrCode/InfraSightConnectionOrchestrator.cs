@@ -36,6 +36,11 @@ public sealed class InfraSightConnectionOrchestrator : IDisposable
 
         if (visualizationManager.HasVisualization(endpoint))
         {
+            if (hasTrackedPose)
+            {
+                visualizationManager.UpdateMachineVisualizationPose(endpoint, pose.position, pose.rotation);
+            }
+
             return;
         }
 
@@ -106,17 +111,22 @@ public sealed class InfraSightConnectionOrchestrator : IDisposable
 
     private void UpdateAttemptPose(string endpoint, ConnectionAttempt attempt, Pose pose, bool hasTrackedPose)
     {
-        if (!hasTrackedPose || attempt.HasTrackedPose)
+        if (!hasTrackedPose)
         {
             return;
         }
 
+        bool firstTrackedPose = !attempt.HasTrackedPose;
         attempt.Pose = pose;
         attempt.HasTrackedPose = true;
         if (attempt.VisualizationCreated)
         {
             visualizationManager.UpdateMachineVisualizationPose(endpoint, pose.position, pose.rotation);
-            Debug.Log($"Reanchored machine visualization at tracked QR pose for endpoint {endpoint}.");
+            if (firstTrackedPose)
+            {
+                Debug.Log($"Reanchored machine visualization at tracked QR pose for endpoint {endpoint}.");
+            }
+
             connectionAttempts.Remove(endpoint);
             return;
         }

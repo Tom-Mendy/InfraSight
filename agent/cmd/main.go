@@ -95,6 +95,7 @@ func logStartup(logger *slog.Logger, server *transport.Server) {
 		"state_url", fmt.Sprintf("http://%s/state", advertiseAddr),
 		"qr_payload_url", fmt.Sprintf("http://%s/qr", advertiseAddr),
 		"qr_image_url", fmt.Sprintf("http://%s/qr.png", advertiseAddr),
+		"qr_scan_url", fmt.Sprintf("http://%s/scan", advertiseAddr),
 	)
 
 	payloadJSON, err := server.QRPayloadJSON()

@@ -68,6 +68,7 @@ Then it streams metric snapshots. Static machine metadata is only sent in the ha
 - `GET /health`: health/status info.
 - `GET /qr`: QR payload JSON (`ip`, `port`, `ws`).
 - `GET /qr.png`: PNG QR code of connection payload (`ip`, `port`).
+- `GET /scan`: official QR display page used for Android spatial tracking.
 
 ## Run
 

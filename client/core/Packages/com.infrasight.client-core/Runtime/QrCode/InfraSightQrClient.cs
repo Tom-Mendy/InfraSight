@@ -4,7 +4,6 @@ using UnityEngine;
 public class InfraSightQrClient : MonoBehaviour
 {
     [SerializeField] private QrScanProviderBehaviour qrScanProvider;
-    [SerializeField] private GameObject spawnSpherePrefab;
     [SerializeField] private GameObject spawnCubePrefab;
     [SerializeField] private GameObject machineVisualizationPrefab;
     [SerializeField] private GameObject feedbackPrefab;
@@ -20,7 +19,6 @@ public class InfraSightQrClient : MonoBehaviour
         LoadDefaultPrefabs();
         visualizationManager = new InfraSightMachineVisualizationManager(
             transform,
-            spawnSpherePrefab,
             spawnCubePrefab,
             machineVisualizationPrefab,
             feedbackPrefab);
@@ -82,7 +80,6 @@ public class InfraSightQrClient : MonoBehaviour
 
     private void LoadDefaultPrefabs()
     {
-        spawnSpherePrefab ??= Resources.Load<GameObject>("InfraSight/Sphere");
         spawnCubePrefab ??= Resources.Load<GameObject>("InfraSight/Cube");
         feedbackPrefab ??= Resources.Load<GameObject>("InfraSight/FeedBack");
         machineVisualizationPrefab ??= Resources.Load<GameObject>("InfraSight/MachineInfo");

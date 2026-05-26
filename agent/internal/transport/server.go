@@ -123,5 +123,6 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/state", s.handleState)
 	mux.HandleFunc("/qr", s.handleQRPayload)
 	mux.HandleFunc("/qr.png", s.handleQRPng)
+	mux.HandleFunc("/scan", s.handleScan)
 	mux.HandleFunc("/ws", s.handleWebSocket)
 }

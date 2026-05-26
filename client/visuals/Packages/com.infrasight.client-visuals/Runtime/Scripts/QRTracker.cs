@@ -29,14 +29,6 @@ public class QRTracker : MonoBehaviour
                 label.text = $"Connexion impossible vers {FormatMachineName(statusMachineName)}.";
                 label.color = Color.red;
                 break;
-            case "QR_Sphere":
-                label.text = "the Sphere";
-                label.color = Color.red;
-                break;
-            case "QR_Cube":
-                label.text = "the Cube";
-                label.color = Color.blue;
-                break;
             default:
                 label.text = string.IsNullOrWhiteSpace(qrID) ? "Unknown ID" : qrID;
                 label.color = Color.yellow;

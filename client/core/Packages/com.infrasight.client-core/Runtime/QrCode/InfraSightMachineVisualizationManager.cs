@@ -4,7 +4,6 @@ using UnityEngine;
 public sealed class InfraSightMachineVisualizationManager
 {
     private readonly Transform rootTransform;
-    private readonly GameObject spawnSpherePrefab;
     private readonly GameObject spawnCubePrefab;
     private readonly GameObject machineVisualizationPrefab;
     private readonly GameObject feedbackPrefab;
@@ -12,13 +11,11 @@ public sealed class InfraSightMachineVisualizationManager
 
     public InfraSightMachineVisualizationManager(
         Transform rootTransform,
-        GameObject spawnSpherePrefab,
         GameObject spawnCubePrefab,
         GameObject machineVisualizationPrefab,
         GameObject feedbackPrefab)
     {
         this.rootTransform = rootTransform;
-        this.spawnSpherePrefab = spawnSpherePrefab;
         this.spawnCubePrefab = spawnCubePrefab;
         this.machineVisualizationPrefab = machineVisualizationPrefab;
         this.feedbackPrefab = feedbackPrefab;
@@ -80,6 +77,12 @@ public sealed class InfraSightMachineVisualizationManager
         }
 
         GameObject root = CreateMachineRoot(rootTransform);
+        if (root == null)
+        {
+            Debug.LogWarning("Cannot create machine visualization: MachineInfo prefab is missing.");
+            return;
+        }
+
         root.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
         root.SendMessage("SetQrId", connection.MachineName, SendMessageOptions.DontRequireReceiver);
 
@@ -180,16 +183,12 @@ public sealed class InfraSightMachineVisualizationManager
 
     private GameObject CreateMachineRoot(Transform parent)
     {
-        GameObject prefabToSpawn = machineVisualizationPrefab != null ? machineVisualizationPrefab : spawnSpherePrefab;
-        if (prefabToSpawn != null)
+        if (machineVisualizationPrefab != null)
         {
-            return Object.Instantiate(prefabToSpawn, parent);
+            return Object.Instantiate(machineVisualizationPrefab, parent);
         }
 
-        GameObject primitive = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        primitive.name = "InfraSight Machine";
-        primitive.transform.SetParent(parent, false);
-        return primitive;
+        return null;
     }
 
     private GameObject CreateContainerObject(Transform parent)
