@@ -18,11 +18,16 @@ public abstract class QrScanProviderBehaviour : MonoBehaviour, IQrScanProvider
 
     protected void RaiseQrDetected(string payload, Pose pose)
     {
+        RaiseQrDetected(payload, pose, true);
+    }
+
+    protected void RaiseQrDetected(string payload, Pose pose, bool hasTrackedPose)
+    {
         if (string.IsNullOrWhiteSpace(payload))
         {
             return;
         }
 
-        QrDetected?.Invoke(new QrScanResult(payload, pose));
+        QrDetected?.Invoke(new QrScanResult(payload, pose, hasTrackedPose));
     }
 }

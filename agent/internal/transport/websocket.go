@@ -18,17 +18,23 @@ const (
 )
 
 func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	clientAddress := websocketClientAddress(r)
+	s.logger.Info("websocket connection attempt", "client", clientAddress, "machine", s.qrPayload.Name)
+
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.logger.Warn("websocket upgrade failed", "error", err)
+		s.logger.Warn("websocket upgrade failed", "client", clientAddress, "error", err)
 		return
 	}
 	defer conn.Close()
 
 	if err := writeWebSocketJSON(conn, models.NewConnectionStep(s.qrPayload.Name)); err != nil {
-		s.logger.Debug("websocket write failed sending machine name", "error", err)
+		s.logger.Debug("websocket write failed sending machine name", "client", clientAddress, "error", err)
 		return
 	}
+
+	s.logger.Info("websocket client connected", "client", clientAddress, "machine", s.qrPayload.Name)
+	defer s.logger.Info("websocket client disconnected", "client", clientAddress, "machine", s.qrPayload.Name)
 
 	subscriberID, updates := s.state.Subscribe(1)
 	defer s.state.Unsubscribe(subscriberID)

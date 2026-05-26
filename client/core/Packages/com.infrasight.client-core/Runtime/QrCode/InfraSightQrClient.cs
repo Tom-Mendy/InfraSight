@@ -77,7 +77,7 @@ public class InfraSightQrClient : MonoBehaviour
 
     private void OnQrDetected(QrScanResult result)
     {
-        orchestrator.ConnectQrPayload(result.Payload, result.Pose);
+        orchestrator.ConnectQrPayload(result.Payload, result.Pose, result.HasTrackedPose);
     }
 
     private void LoadDefaultPrefabs()

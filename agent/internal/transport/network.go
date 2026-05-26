@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+var (
+	detectPrimaryIPv4  = detectRouteIPv4
+	detectFallbackIPv4 = detectInterfaceIPv4
+)
+
 func resolveAdvertiseIP(bindHost, explicitAdvertiseIP string) (string, error) {
 	explicitAdvertiseIP = strings.TrimSpace(explicitAdvertiseIP)
 	if explicitAdvertiseIP != "" {
@@ -28,6 +33,29 @@ func resolveAdvertiseIP(bindHost, explicitAdvertiseIP string) (string, error) {
 }
 
 func detectLocalIPv4() (string, error) {
+	if ip, err := detectPrimaryIPv4(); err == nil {
+		return ip, nil
+	}
+
+	return detectFallbackIPv4()
+}
+
+func detectRouteIPv4() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", fmt.Errorf("resolve primary route: %w", err)
+	}
+	defer conn.Close()
+
+	udpAddr, ok := conn.LocalAddr().(*net.UDPAddr)
+	if !ok || udpAddr.IP == nil || udpAddr.IP.IsLoopback() || udpAddr.IP.To4() == nil {
+		return "", fmt.Errorf("primary route has no non-loopback IPv4 address")
+	}
+
+	return udpAddr.IP.To4().String(), nil
+}
+
+func detectInterfaceIPv4() (string, error) {
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return "", fmt.Errorf("list network interfaces: %w", err)
@@ -66,16 +94,6 @@ func detectLocalIPv4() (string, error) {
 
 	if firstCandidate != "" {
 		return firstCandidate, nil
-	}
-
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err == nil {
-		defer conn.Close()
-		if udpAddr, ok := conn.LocalAddr().(*net.UDPAddr); ok && udpAddr.IP != nil {
-			if v4 := udpAddr.IP.To4(); v4 != nil {
-				return v4.String(), nil
-			}
-		}
 	}
 
 	return "", fmt.Errorf("no non-loopback IPv4 address found")

@@ -47,6 +47,7 @@ public class ServerConnectionClient : IDisposable
         connection.PayloadReceived += OnConnectionPayloadReceived;
         connections[endpoint] = connection;
 
+        Debug.Log($"Attempting websocket connection to {endpoint} from QR payload.");
         bool connected = await connection.ConnectAsync(connectTimeout);
         if (connected)
         {

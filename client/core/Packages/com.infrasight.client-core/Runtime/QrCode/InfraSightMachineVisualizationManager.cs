@@ -29,7 +29,7 @@ public sealed class InfraSightMachineVisualizationManager
         return machineVisualizations.ContainsKey(endpoint);
     }
 
-    public GameObject CreateFeedback(Vector3 position, Quaternion rotation)
+    public GameObject CreateFeedback(Vector3 position, Quaternion rotation, string machineName)
     {
         if (feedbackPrefab == null)
         {
@@ -37,10 +37,18 @@ public sealed class InfraSightMachineVisualizationManager
         }
 
         GameObject feedbackObject = Object.Instantiate(feedbackPrefab, rootTransform);
-        feedbackObject.transform.SetPositionAndRotation(position, rotation);
-        feedbackObject.SendMessage("SetQrId", "CONNECTING", SendMessageOptions.DontRequireReceiver);
+        feedbackObject.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
+        feedbackObject.SendMessage("SetConnectingMachine", machineName, SendMessageOptions.DontRequireReceiver);
 
         return feedbackObject;
+    }
+
+    public void UpdateFeedbackPose(GameObject feedbackObject, Vector3 position, Quaternion rotation)
+    {
+        if (feedbackObject != null)
+        {
+            feedbackObject.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
+        }
     }
 
     public void DestroyFeedback(GameObject feedbackObject)
@@ -56,11 +64,11 @@ public sealed class InfraSightMachineVisualizationManager
         }
     }
 
-    public void SetFeedbackState(GameObject feedbackObject, string state)
+    public void SetFeedbackFailed(GameObject feedbackObject, string machineName)
     {
         if (feedbackObject != null)
         {
-            feedbackObject.SendMessage("SetQrId", state, SendMessageOptions.DontRequireReceiver);
+            feedbackObject.SendMessage("SetConnectionFailedMachine", machineName, SendMessageOptions.DontRequireReceiver);
         }
     }
 
@@ -72,10 +80,19 @@ public sealed class InfraSightMachineVisualizationManager
         }
 
         GameObject root = CreateMachineRoot(rootTransform);
-        root.transform.SetPositionAndRotation(position, rotation * Quaternion.Euler(0f, 180f, 0f));
+        root.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
         root.SendMessage("SetQrId", connection.MachineName, SendMessageOptions.DontRequireReceiver);
 
         machineVisualizations[connection.Endpoint] = new MachineVisualizationContext(root);
+    }
+
+    public void UpdateMachineVisualizationPose(string endpoint, Vector3 position, Quaternion rotation)
+    {
+        if (machineVisualizations.TryGetValue(endpoint, out MachineVisualizationContext context)
+            && context.Root != null)
+        {
+            context.Root.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
+        }
     }
 
     public void ApplyPayload(string endpoint, ServerDataPayload payload)
@@ -186,6 +203,11 @@ public sealed class InfraSightMachineVisualizationManager
         primitive.name = "InfraSight Container";
         primitive.transform.SetParent(parent, false);
         return primitive;
+    }
+
+    private static Quaternion GetReadableRotation(Quaternion rotation)
+    {
+        return rotation * Quaternion.Euler(0f, 180f, 0f);
     }
 
     private sealed class MachineVisualizationContext
