@@ -261,7 +261,9 @@ public class ServerConnection : IDisposable
                 }
 
                 string message = Encoding.UTF8.GetString(messageStream.ToArray());
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.Log($"WebSocket message received: {message}");
+#endif
                 HandleMessage(message);
             }
         }

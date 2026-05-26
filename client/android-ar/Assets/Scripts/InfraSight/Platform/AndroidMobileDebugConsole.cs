@@ -111,6 +111,9 @@ internal static class AndroidMobileLogBuffer
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Initialize()
     {
+#if UNITY_ANDROID && !DEVELOPMENT_BUILD
+        Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
+#endif
         Messages.Clear();
         Application.logMessageReceived -= Capture;
         Application.logMessageReceived += Capture;

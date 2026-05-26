@@ -10,6 +10,10 @@ using UnityEngine.XR.ARSubsystems;
 using ZXing;
 using ZXing.Common;
 
+#if UNITY_ANDROID
+using UnityEngine.Android;
+#endif
+
 public class AndroidArQrScanProvider : QrScanProviderBehaviour
 {
     [SerializeField] private ARCameraManager cameraManager;
@@ -22,10 +26,10 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     private readonly BarcodeReaderGeneric barcodeReader = new()
     {
         AutoRotate = true,
-        TryInverted = true,
         Options = new DecodingOptions
         {
             TryHarder = true,
+            TryInverted = true,
             PossibleFormats = new[] { BarcodeFormat.QR_CODE }
         }
     };
@@ -101,6 +105,13 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
 
     private void TryScanFrame()
     {
+#if UNITY_ANDROID
+        if (!Permission.HasUserAuthorizedPermission(Permission.Camera))
+        {
+            return;
+        }
+#endif
+
         if (cameraManager == null || !cameraManager.TryAcquireLatestCpuImage(out XRCpuImage cpuImage))
         {
             return;
