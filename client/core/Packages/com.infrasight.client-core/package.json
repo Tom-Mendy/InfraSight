@@ -1,0 +1,10 @@
+{
+  "name": "com.infrasight.client-core",
+  "version": "0.1.0",
+  "displayName": "InfraSight Client Core",
+  "description": "Shared InfraSight Unity client logic: QR contracts, agent connection, payload parsing, and machine visualization orchestration.",
+  "unity": "6000.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}
