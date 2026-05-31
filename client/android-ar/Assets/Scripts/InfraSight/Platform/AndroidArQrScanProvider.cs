@@ -21,7 +21,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     [SerializeField] private float scanIntervalSeconds = 0.5f;
     [SerializeField] private float duplicatePayloadCooldownSeconds = 5f;
     [SerializeField] private int downsampleWidth = 640;
-    [SerializeField] private float fallbackPoseDistanceMeters = 1f;
+    [SerializeField] private float trackedQrPhysicalWidthMeters = 0.16f;
+    [SerializeField] private float trackedQrForwardOffsetMeters = 0.12f;
 
     private readonly BarcodeReaderGeneric barcodeReader = new()
     {
@@ -39,7 +40,6 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     private readonly HashSet<TrackableId> activeTrackedImages = new();
     private MutableRuntimeReferenceImageLibrary mutableImageLibrary;
     private Coroutine scanCoroutine;
-    private Matrix4x4? displayMatrix;
     private string lastPayload;
     private float lastPayloadTime = float.NegativeInfinity;
     private bool trackingEventsSubscribed;
@@ -54,21 +54,11 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
     private void OnEnable()
     {
         ResolveManagers();
-        if (cameraManager != null)
-        {
-            cameraManager.frameReceived += OnCameraFrameReceived;
-        }
-
         SubscribeTrackedImageEvents();
     }
 
     private void OnDisable()
     {
-        if (cameraManager != null)
-        {
-            cameraManager.frameReceived -= OnCameraFrameReceived;
-        }
-
         UnsubscribeTrackedImageEvents();
     }
 
@@ -138,16 +128,28 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
                 return;
             }
 
-            RequestOfficialImageTracking(result.Text);
-            if (IsDuplicatePayloadOnCooldown(result.Text)
-                || !TryGetQrScreenPoint(result, width, height, out Vector2 screenPoint)
-                || !TryGetFallbackPose(screenPoint, out Pose fallbackPose))
+            if (!TryGetOfficialQrPngUrl(result.Text, out string imageUrl, out string endpoint))
+            {
+                if (!IsDuplicatePayloadOnCooldown(result.Text))
+                {
+                    RecordDetectedPayload(result.Text);
+                    Debug.LogWarning("Scanned QR payload is not an InfraSight connection payload; ignoring for tracked anchoring.");
+                }
+
+                return;
+            }
+
+            bool queuedTracking = RequestOfficialImageTracking(result.Text, endpoint, imageUrl);
+            if (IsDuplicatePayloadOnCooldown(result.Text))
             {
                 return;
             }
 
             RecordDetectedPayload(result.Text);
-            RaiseQrDetected(result.Text, fallbackPose, false);
+            Debug.Log(
+                queuedTracking
+                    ? $"Detected InfraSight QR for endpoint {endpoint}; waiting for ARCore tracked-image pose before anchoring."
+                    : $"Detected InfraSight QR for endpoint {endpoint}; ARCore tracked-image registration already pending.");
         }
     }
 
@@ -157,15 +159,15 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         trackedImageManager ??= FindFirstObjectByType<ARTrackedImageManager>(FindObjectsInactive.Include);
     }
 
-    private void RequestOfficialImageTracking(string payload)
+    private bool RequestOfficialImageTracking(string payload, string endpoint, string imageUrl)
     {
-        if (!TryGetOfficialQrPngUrl(payload, out string imageUrl, out string endpoint)
-            || !requestedTrackedPayloads.Add(payload))
+        if (!requestedTrackedPayloads.Add(payload))
         {
-            return;
+            return false;
         }
 
         StartCoroutine(AddOfficialQrImage(payload, endpoint, imageUrl));
+        return true;
     }
 
     private static bool TryGetOfficialQrPngUrl(string payload, out string imageUrl, out string endpoint)
@@ -173,7 +175,6 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         imageUrl = null;
         endpoint = null;
         if (string.IsNullOrWhiteSpace(payload)
-            || payload.IndexOf("\"name\"", StringComparison.OrdinalIgnoreCase) >= 0
             || !ServerConnectionClient.TryParseConnectionInfo(payload, out QrConnectionInfo connectionInfo))
         {
             return false;
@@ -191,7 +192,7 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         {
             if (ARSession.state == ARSessionState.Unsupported)
             {
-                Debug.LogWarning($"ARCore image tracking unavailable; retaining provisional QR pose for endpoint {endpoint}.");
+                Debug.LogWarning($"ARCore image tracking unavailable; cannot anchor endpoint {endpoint} from QR tracker.");
                 yield break;
             }
 
@@ -200,7 +201,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
 
         if (!TryInitializeImageTracking())
         {
-            Debug.LogWarning($"Could not initialize ARCore image tracking; retaining provisional QR pose for endpoint {endpoint}.");
+            requestedTrackedPayloads.Remove(payload);
+            Debug.LogWarning($"Could not initialize ARCore image tracking; cannot anchor endpoint {endpoint} from QR tracker.");
             yield break;
         }
 
@@ -209,7 +211,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         yield return request.SendWebRequest();
         if (request.result != UnityWebRequest.Result.Success)
         {
-            Debug.LogWarning($"Could not download spatial QR image for endpoint {endpoint}: {request.error}. Retaining provisional pose.");
+            requestedTrackedPayloads.Remove(payload);
+            Debug.LogWarning($"Could not download spatial QR image for endpoint {endpoint}: {request.error}. Cannot anchor from QR tracker.");
             yield break;
         }
 
@@ -218,12 +221,16 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         AddReferenceImageJobState addState;
         try
         {
-            addState = mutableImageLibrary.ScheduleAddImageWithValidationJob(texture, imageName, null);
+            addState = mutableImageLibrary.ScheduleAddImageWithValidationJob(
+                texture,
+                imageName,
+                Mathf.Max(0.01f, trackedQrPhysicalWidthMeters));
         }
         catch (Exception exception)
         {
             Destroy(texture);
-            Debug.LogWarning($"Could not submit spatial QR image for endpoint {endpoint}: {exception.Message}. Retaining provisional pose.");
+            requestedTrackedPayloads.Remove(payload);
+            Debug.LogWarning($"Could not submit spatial QR image for endpoint {endpoint}: {exception.Message}. Cannot anchor from QR tracker.");
             yield break;
         }
 
@@ -235,7 +242,8 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         Destroy(texture);
         if (!addState.status.IsSuccess())
         {
-            Debug.LogWarning($"ARCore rejected spatial QR image for endpoint {endpoint}; retaining provisional pose.");
+            requestedTrackedPayloads.Remove(payload);
+            Debug.LogWarning($"ARCore rejected spatial QR image for endpoint {endpoint}; cannot anchor from QR tracker.");
             yield break;
         }
 
@@ -326,69 +334,47 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
             return;
         }
 
+        Pose anchorPose = BuildAnchorPose(trackedImage);
         if (activeTrackedImages.Add(trackedImage.trackableId))
         {
-            Debug.Log($"Tracking official spatial QR transform for {trackedImage.referenceImage.name}.");
+            Debug.Log(
+                $"Tracking official spatial QR transform for {trackedImage.referenceImage.name}: " +
+                $"center={trackedImage.transform.position}, " +
+                $"anchor={anchorPose.position}, " +
+                $"width={Mathf.Max(0.01f, trackedQrPhysicalWidthMeters):0.###}m, " +
+                $"offset={Mathf.Max(0f, trackedQrForwardOffsetMeters):0.###}m.");
         }
 
         RaiseQrDetected(
             payload,
-            new Pose(trackedImage.transform.position, trackedImage.transform.rotation),
+            anchorPose,
             true);
     }
 
-    private void OnCameraFrameReceived(ARCameraFrameEventArgs args)
+    private Pose BuildAnchorPose(ARTrackedImage trackedImage)
     {
-        if (args.displayMatrix.HasValue)
-        {
-            displayMatrix = args.displayMatrix.Value;
-        }
+        Vector3 center = trackedImage.transform.position;
+        Vector3 toCamera = GetDirectionToCamera(center, trackedImage.transform.forward);
+        Vector3 anchorPosition = center + toCamera * Mathf.Max(0f, trackedQrForwardOffsetMeters);
+        Quaternion anchorRotation = Quaternion.LookRotation(-toCamera, Vector3.up);
+        return new Pose(anchorPosition, anchorRotation);
     }
 
-    private bool TryGetQrScreenPoint(Result result, int imageWidth, int imageHeight, out Vector2 screenPoint)
+    private Vector3 GetDirectionToCamera(Vector3 fromPosition, Vector3 fallbackDirection)
     {
-        screenPoint = default;
-        if (!displayMatrix.HasValue
-            || result.ResultPoints == null
-            || result.ResultPoints.Length == 0)
-        {
-            return false;
-        }
-
-        Vector2 center = Vector2.zero;
-        for (int i = 0; i < result.ResultPoints.Length; i++)
-        {
-            center += new Vector2(result.ResultPoints[i].X, result.ResultPoints[i].Y);
-        }
-
-        center /= result.ResultPoints.Length;
-
-        // ZXing reads the MirrorY-converted image, so reverse X before applying
-        // AR Foundation's native-camera-texture to display-space transform.
-        var nativeTexturePoint = new Vector4(
-            1f - Mathf.Clamp01(center.x / Mathf.Max(1, imageWidth - 1)),
-            Mathf.Clamp01(center.y / Mathf.Max(1, imageHeight - 1)),
-            1f,
-            0f);
-        Vector4 viewportPoint = displayMatrix.Value.inverse.transpose * nativeTexturePoint;
-        screenPoint = new Vector2(viewportPoint.x * Screen.width, viewportPoint.y * Screen.height);
-        return true;
-    }
-
-    private bool TryGetFallbackPose(Vector2 screenPoint, out Pose pose)
-    {
-        pose = default;
         Camera arCamera = cameraManager != null ? cameraManager.GetComponent<Camera>() : null;
-        if (arCamera == null)
+        if (arCamera != null)
         {
-            return false;
+            Vector3 toCamera = arCamera.transform.position - fromPosition;
+            if (toCamera.sqrMagnitude > 0.0001f)
+            {
+                return toCamera.normalized;
+            }
         }
 
-        Ray ray = arCamera.ScreenPointToRay(screenPoint);
-        pose = new Pose(
-            ray.GetPoint(Mathf.Max(0.1f, fallbackPoseDistanceMeters)),
-            cameraManager.transform.rotation);
-        return true;
+        return fallbackDirection.sqrMagnitude > 0.0001f
+            ? fallbackDirection.normalized
+            : Vector3.forward;
     }
 
     private void RecordDetectedPayload(string payload)
