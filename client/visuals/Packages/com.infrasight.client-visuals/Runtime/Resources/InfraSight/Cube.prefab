@@ -72,7 +72,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
   m_UiScaleMode: 0
   m_ReferencePixelsPerUnit: 100
@@ -252,6 +252,7 @@ GameObject:
   - component: {fileID: 7528925807809740362}
   - component: {fileID: 478389583421763086}
   - component: {fileID: 2926320761152482573}
+  - component: {fileID: 392952704551047926}
   m_Layer: 0
   m_Name: Cube
   m_TagString: Untagged
@@ -367,6 +368,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::QRTracker
   qrID: 
   label: {fileID: 1225979272884147372}
+--- !u!114 &392952704551047926
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4807773206391910864}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2f9527ac55104cb6a00ae800d6247924, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ContainerVisualization
+  label: {fileID: 1225979272884147372}
+  panel: {fileID: 1242561724420915585}
+  targetRenderer: {fileID: 7528925807809740362}
 --- !u!1 &8721717191305425906
 GameObject:
   m_ObjectHideFlags: 0

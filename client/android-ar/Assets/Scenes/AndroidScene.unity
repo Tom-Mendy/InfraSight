@@ -6515,8 +6515,10 @@ MonoBehaviour:
   machineVisualizationPrefab: {fileID: 611080030969583199, guid: a8a9861330d09164782135ce0cc7cffb, type: 3}
   feedbackPrefab: {fileID: 2926123247158707329, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
   enableTestMode: 0
+  enableEditorTestMode: 1
+  editorTestAnchorOffset: {x: 0, y: -0.15, z: 1.25}
   testQrPayloads:
-  - '{"name":"Tom_Zeph-G-14","ip":"192.168.245.1","port":8080}'
+  - '{"ip":"172.23.67.142","port":8080}'
   testMachineSpacing: 1.5
 --- !u!114 &1900000005
 MonoBehaviour:
