@@ -1,0 +1,24 @@
+services:
+  link-a:
+    image: python:3.13-alpine
+    container_name: infrasight-link-a
+    working_dir: /app
+    volumes:
+      - ./pingpong.py:/app/pingpong.py:ro
+    command: ["python", "/app/pingpong.py", "--name", "link-a", "--peer", "link-b"]
+    networks:
+      - infrasight-link-test
+
+  link-b:
+    image: python:3.13-alpine
+    container_name: infrasight-link-b
+    working_dir: /app
+    volumes:
+      - ./pingpong.py:/app/pingpong.py:ro
+    command: ["python", "/app/pingpong.py", "--name", "link-b", "--peer", "link-a"]
+    networks:
+      - infrasight-link-test
+
+networks:
+  infrasight-link-test:
+    name: infrasight-link-test

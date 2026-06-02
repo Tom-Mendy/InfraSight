@@ -17,6 +17,9 @@ public class ContainerVisualization : MonoBehaviour
     [SerializeField] private Renderer targetRenderer;
 
     private ContainerDataPayload currentContainer;
+    private string currentContainerId;
+    private float peakRxBytesPerSecond;
+    private float peakTxBytesPerSecond;
     private int hiddenAggregateCount;
     private bool isAggregate;
     private bool isSelected;
@@ -51,7 +54,17 @@ public class ContainerVisualization : MonoBehaviour
 
     public void SetContainerData(ContainerDataPayload containerData)
     {
+        string nextContainerId = containerData?.id ?? string.Empty;
+        if (!string.Equals(currentContainerId, nextContainerId, StringComparison.Ordinal))
+        {
+            peakRxBytesPerSecond = 0f;
+            peakTxBytesPerSecond = 0f;
+            currentContainerId = nextContainerId;
+        }
+
         currentContainer = containerData;
+        peakRxBytesPerSecond = Mathf.Max(peakRxBytesPerSecond, containerData?.rxBytesPerSecond ?? 0f);
+        peakTxBytesPerSecond = Mathf.Max(peakTxBytesPerSecond, containerData?.txBytesPerSecond ?? 0f);
         hiddenAggregateCount = 0;
         isAggregate = false;
         RefreshView();
@@ -135,15 +148,20 @@ public class ContainerVisualization : MonoBehaviour
 
     private static string CompactLabel(ContainerDataPayload containerData)
     {
-        return $"{DisplayName(containerData)}\n{Mathf.Clamp(containerData.cpu, 0f, 100f):0.#}%";
+        float trafficRate = Mathf.Max(containerData.rxBytesPerSecond, containerData.txBytesPerSecond);
+        string traffic = trafficRate > 0f ? $"\n{FormatBytesPerSecond(trafficRate)}" : string.Empty;
+        return $"{DisplayName(containerData)}\n{Mathf.Clamp(containerData.cpu, 0f, 100f):0.#}%{traffic}";
     }
 
-    private static string DetailLabel(ContainerDataPayload containerData)
+    private string DetailLabel(ContainerDataPayload containerData)
     {
         string id = string.IsNullOrWhiteSpace(containerData.id) ? "unknown" : containerData.id;
         string shortId = id.Length > 12 ? id.Substring(0, 12) : id;
         string status = string.IsNullOrWhiteSpace(containerData.status) ? "unknown" : containerData.status;
-        return $"{DisplayName(containerData)}\n{status} | CPU {Mathf.Clamp(containerData.cpu, 0f, 100f):0.#}%\nID {shortId}\nTap: pin/unpin";
+        string networks = containerData.networkNames == null || containerData.networkNames.Length == 0
+            ? "network unknown"
+            : string.Join(", ", containerData.networkNames);
+        return $"{DisplayName(containerData)}\n{status} | CPU {Mathf.Clamp(containerData.cpu, 0f, 100f):0.#}%\nRX {FormatBytesPerSecond(containerData.rxBytesPerSecond)} | TX {FormatBytesPerSecond(containerData.txBytesPerSecond)}\nPeak {FormatBytesPerSecond(peakRxBytesPerSecond)} / {FormatBytesPerSecond(peakTxBytesPerSecond)}\n{networks}\nID {shortId}\nTap: pin/unpin";
     }
 
     private static string DisplayName(ContainerDataPayload containerData)
@@ -167,5 +185,19 @@ public class ContainerVisualization : MonoBehaviour
         }
 
         return UnknownColor;
+    }
+
+    private static string FormatBytesPerSecond(float bytesPerSecond)
+    {
+        float value = Mathf.Max(0f, bytesPerSecond);
+        string[] units = { "B/s", "KB/s", "MB/s", "GB/s" };
+        int unitIndex = 0;
+        while (value >= 1024f && unitIndex < units.Length - 1)
+        {
+            value /= 1024f;
+            unitIndex++;
+        }
+
+        return $"{value:0.#} {units[unitIndex]}";
     }
 }

@@ -11,17 +11,34 @@ type Machine struct {
 
 // Container represents a Docker container state.
 type Container struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Status string  `json:"status"`
-	CPU    float64 `json:"cpu"`
+	ID               string   `json:"id"`
+	Name             string   `json:"name"`
+	Status           string   `json:"status"`
+	CPU              float64  `json:"cpu"`
+	RXBytes          uint64   `json:"rx_bytes"`
+	TXBytes          uint64   `json:"tx_bytes"`
+	RXBytesPerSecond float64  `json:"rx_bps"`
+	TXBytesPerSecond float64  `json:"tx_bps"`
+	NetworkNames     []string `json:"network_names,omitempty"`
+}
+
+// NetworkEdge represents an observed Docker-internal network connection.
+type NetworkEdge struct {
+	SourceID    string  `json:"source_id"`
+	TargetID    string  `json:"target_id"`
+	Protocol    string  `json:"protocol"`
+	State       string  `json:"state,omitempty"`
+	NetworkName string  `json:"network_name,omitempty"`
+	RXBps       float64 `json:"rx_bps"`
+	TXBps       float64 `json:"tx_bps"`
 }
 
 // Snapshot is the full state sent to AR clients.
 type Snapshot struct {
-	Machine    Machine     `json:"machine"`
-	Containers []Container `json:"containers"`
-	Timestamp  time.Time   `json:"timestamp"`
+	Machine      Machine       `json:"machine"`
+	Containers   []Container   `json:"containers"`
+	NetworkEdges []NetworkEdge `json:"network_edges,omitempty"`
+	Timestamp    time.Time     `json:"timestamp"`
 }
 
 const connectionMessageType = "connection"
@@ -40,9 +57,10 @@ type StreamMachine struct {
 
 // StreamSnapshot is the recurring message sent over WebSocket after the initial handshake.
 type StreamSnapshot struct {
-	Machine    StreamMachine `json:"machine"`
-	Containers []Container   `json:"containers"`
-	Timestamp  time.Time     `json:"timestamp"`
+	Machine      StreamMachine `json:"machine"`
+	Containers   []Container   `json:"containers"`
+	NetworkEdges []NetworkEdge `json:"network_edges,omitempty"`
+	Timestamp    time.Time     `json:"timestamp"`
 }
 
 func NewConnectionStep(machineName string) ConnectionStep {
@@ -58,8 +76,9 @@ func NewStreamSnapshot(snapshot Snapshot) StreamSnapshot {
 			CPU: snapshot.Machine.CPU,
 			RAM: snapshot.Machine.RAM,
 		},
-		Containers: snapshot.Containers,
-		Timestamp:  snapshot.Timestamp,
+		Containers:   snapshot.Containers,
+		NetworkEdges: snapshot.NetworkEdges,
+		Timestamp:    snapshot.Timestamp,
 	}
 }
 

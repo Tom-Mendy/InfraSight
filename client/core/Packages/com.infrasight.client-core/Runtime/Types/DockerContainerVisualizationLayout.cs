@@ -71,6 +71,33 @@ public static class DockerContainerVisualizationLayout
         return Math.Max(0, displayCount - Math.Max(0, maxVisible));
     }
 
+    public static List<DockerNetworkEdgePayload> FilterVisibleNetworkEdges(
+        DockerNetworkEdgePayload[] networkEdges,
+        HashSet<string> visibleContainerIds)
+    {
+        List<DockerNetworkEdgePayload> visibleEdges = new();
+        if (networkEdges == null || visibleContainerIds == null || visibleContainerIds.Count == 0)
+        {
+            return visibleEdges;
+        }
+
+        foreach (DockerNetworkEdgePayload edge in networkEdges)
+        {
+            if (edge == null
+                || string.IsNullOrWhiteSpace(edge.sourceId)
+                || string.IsNullOrWhiteSpace(edge.targetId)
+                || !visibleContainerIds.Contains(edge.sourceId)
+                || !visibleContainerIds.Contains(edge.targetId))
+            {
+                continue;
+            }
+
+            visibleEdges.Add(edge);
+        }
+
+        return visibleEdges;
+    }
+
     public static bool IsRunning(string status)
     {
         return string.Equals(status, "running", StringComparison.OrdinalIgnoreCase);

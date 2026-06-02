@@ -25,7 +25,7 @@ infrasight-agent/
 ## What It Does
 
 - Collects CPU and RAM usage from the machine.
-- Collects Docker containers (`id`, `name`, `status`, `cpu`) when Docker is available.
+- Collects Docker containers (`id`, `name`, `status`, `cpu`, network totals/rates) when Docker is available.
 - Builds a snapshot every `1s` (default).
 - Broadcasts snapshots to all connected WebSocket clients on `/ws`.
 - Exposes QR onboarding data and QR PNG for mobile scan flow.
@@ -54,7 +54,23 @@ Then it streams metric snapshots. Static machine metadata is only sent in the ha
       "id": "abc123def456",
       "name": "api",
       "status": "running",
-      "cpu": 12.2
+      "cpu": 12.2,
+      "rx_bytes": 1048576,
+      "tx_bytes": 524288,
+      "rx_bps": 2048,
+      "tx_bps": 1024,
+      "network_names": ["bridge"]
+    }
+  ],
+  "network_edges": [
+    {
+      "source_id": "abc123def456",
+      "target_id": "def456abc123",
+      "protocol": "tcp",
+      "state": "established",
+      "network_name": "bridge",
+      "rx_bps": 0,
+      "tx_bps": 0
     }
   ],
   "timestamp": "2026-03-26T10:30:00Z"

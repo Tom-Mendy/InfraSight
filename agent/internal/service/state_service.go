@@ -21,11 +21,11 @@ type StateService struct {
 	containerCollector collector.ContainerCollector
 	interval           time.Duration
 
-	mu                sync.RWMutex
-	latest            models.Snapshot
-	hasSnapshot       bool
-	subscribers       map[int]chan models.Snapshot
-	nextSubscriberID  int
+	mu               sync.RWMutex
+	latest           models.Snapshot
+	hasSnapshot      bool
+	subscribers      map[int]chan models.Snapshot
+	nextSubscriberID int
 }
 
 func NewStateService(
@@ -128,10 +128,20 @@ func (s *StateService) collectAndBroadcast(parent context.Context) {
 		containers = []models.Container{}
 	}
 
+	networkCtx, networkCancel := context.WithTimeout(parent, collectionTimeout)
+	defer networkCancel()
+
+	networkEdges, err := s.containerCollector.CollectNetworkEdges(networkCtx)
+	if err != nil {
+		s.logger.Warn("failed to collect docker network edges", "error", err)
+		networkEdges = []models.NetworkEdge{}
+	}
+
 	snapshot := models.Snapshot{
-		Machine:    machine,
-		Containers: containers,
-		Timestamp:  time.Now().UTC(),
+		Machine:      machine,
+		Containers:   containers,
+		NetworkEdges: networkEdges,
+		Timestamp:    time.Now().UTC(),
 	}
 
 	s.mu.Lock()

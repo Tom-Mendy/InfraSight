@@ -1,0 +1,74 @@
+{
+  "machine": {
+    "cpu": 0.33370411568126884,
+    "ram": 10.285216569724527
+  },
+  "containers": [
+    {
+      "id": "b7fd7445def3",
+      "name": "infrasight-link-a",
+      "status": "running",
+      "cpu": 0,
+      "rx_bytes": 0,
+      "tx_bytes": 0,
+      "rx_bps": 0,
+      "tx_bps": 0,
+      "network_names": [
+        "infrasight-link-test"
+      ]
+    },
+    {
+      "id": "02edf1df7a8f",
+      "name": "infrasight-link-b",
+      "status": "running",
+      "cpu": 0.8514357053682897,
+      "rx_bytes": 4430158,
+      "tx_bytes": 4428498,
+      "rx_bps": 37498.73878490303,
+      "tx_bps": 37498.73878490303,
+      "network_names": [
+        "eth0"
+      ]
+    },
+    {
+      "id": "0a28e2fc59d7",
+      "name": "sumfleet-dev-container-assets-1",
+      "status": "running",
+      "cpu": 0,
+      "rx_bytes": 0,
+      "tx_bytes": 0,
+      "rx_bps": 0,
+      "tx_bps": 0,
+      "network_names": [
+        "sumfleet-dev-container_sumfleet-network"
+      ]
+    },
+    {
+      "id": "296c9f591cc8",
+      "name": "sumfleet-dev-container-database-1",
+      "status": "running",
+      "cpu": 0,
+      "rx_bytes": 0,
+      "tx_bytes": 0,
+      "rx_bps": 0,
+      "tx_bps": 0,
+      "network_names": [
+        "sumfleet-dev-container_sumfleet-network"
+      ]
+    },
+    {
+      "id": "dc3690a68faa",
+      "name": "sumfleet-dev-container-fullstack-1",
+      "status": "running",
+      "cpu": 0,
+      "rx_bytes": 0,
+      "tx_bytes": 0,
+      "rx_bps": 0,
+      "tx_bps": 0,
+      "network_names": [
+        "sumfleet-dev-container_sumfleet-network"
+      ]
+    }
+  ],
+  "timestamp": "2026-06-02T10:18:37.386135642Z"
+}

@@ -150,7 +150,7 @@ public sealed class InfraSightMachineVisualizationManager
             renderer.material.color = Color.Lerp(Color.green, Color.red, normalizedRam);
         }
 
-        ApplyContainers(context, payload.containers);
+        ApplyContainers(context, payload);
     }
 
     private void ToggleStoppedContainers(string endpoint)
@@ -160,8 +160,8 @@ public sealed class InfraSightMachineVisualizationManager
             return;
         }
 
-        context.ShowStoppedContainers = !context.ShowStoppedContainers;
-        RefreshContainers(context);
+            context.ShowStoppedContainers = !context.ShowStoppedContainers;
+            RefreshContainers(context);
     }
 
     private void RecenterContainerRing(string endpoint)
@@ -184,7 +184,7 @@ public sealed class InfraSightMachineVisualizationManager
     {
         if (context.LastPayload != null)
         {
-            ApplyContainers(context, context.LastPayload.containers);
+            ApplyContainers(context, context.LastPayload);
         }
     }
 
@@ -196,8 +196,9 @@ public sealed class InfraSightMachineVisualizationManager
         }
     }
 
-    private void ApplyContainers(MachineVisualizationContext context, ContainerDataPayload[] containers)
+    private void ApplyContainers(MachineVisualizationContext context, ServerDataPayload payload)
     {
+        ContainerDataPayload[] containers = payload?.containers;
         List<ContainerDataPayload> sortedContainers = DockerContainerVisualizationLayout.SortForDisplay(containers);
         List<ContainerDataPayload> displayContainers = DockerContainerVisualizationLayout.FilterStoppedContainers(
             sortedContainers,
@@ -211,15 +212,19 @@ public sealed class InfraSightMachineVisualizationManager
             MaxVisibleContainers);
 
         HashSet<string> activeNodeIds = new();
+        HashSet<string> visibleContainerIds = new();
+        Dictionary<string, Vector3> visibleNodeLocalPositions = new();
         for (int i = 0; i < visibleContainerCount; i++)
         {
             ContainerDataPayload containerData = displayContainers[i];
             string nodeId = ContainerNodeId(containerData.id);
             activeNodeIds.Add(nodeId);
+            visibleContainerIds.Add(containerData.id);
 
             GameObject containerObject = GetOrCreateContainerObject(context, nodeId);
             PoseContainerNode(containerObject, i, visibleContainerCount + (hiddenByCapCount > 0 ? 1 : 0), containerData.status);
             containerObject.SendMessage("SetContainerData", containerData, SendMessageOptions.DontRequireReceiver);
+            visibleNodeLocalPositions[nodeId] = containerObject.transform.localPosition;
         }
 
         if (hiddenByCapCount > 0)
@@ -233,6 +238,7 @@ public sealed class InfraSightMachineVisualizationManager
         }
 
         RemoveStaleContainerNodes(context, activeNodeIds);
+        ApplyNetworkEdges(context, payload?.networkEdges, visibleContainerIds, visibleNodeLocalPositions);
 
         int runningCount = DockerContainerVisualizationLayout.CountRunning(sortedContainers);
 
@@ -303,9 +309,107 @@ public sealed class InfraSightMachineVisualizationManager
         }
     }
 
+    private void ApplyNetworkEdges(
+        MachineVisualizationContext context,
+        DockerNetworkEdgePayload[] networkEdges,
+        HashSet<string> visibleContainerIds,
+        Dictionary<string, Vector3> visibleNodeLocalPositions)
+    {
+        HashSet<string> activeEdgeIds = new();
+        List<DockerNetworkEdgePayload> visibleEdges = DockerContainerVisualizationLayout.FilterVisibleNetworkEdges(
+            networkEdges,
+            visibleContainerIds);
+        foreach (DockerNetworkEdgePayload edgeData in visibleEdges)
+        {
+            string sourceNodeId = ContainerNodeId(edgeData.sourceId);
+            string targetNodeId = ContainerNodeId(edgeData.targetId);
+            if (!visibleNodeLocalPositions.TryGetValue(sourceNodeId, out Vector3 sourcePosition)
+                || !visibleNodeLocalPositions.TryGetValue(targetNodeId, out Vector3 targetPosition))
+            {
+                continue;
+            }
+
+            string edgeId = DockerNetworkEdgeId(edgeData);
+            activeEdgeIds.Add(edgeId);
+            UpdateTrafficLink(context, edgeId, sourcePosition, targetPosition, edgeData);
+        }
+
+        RemoveStaleTrafficLinks(context, activeEdgeIds);
+    }
+
+    private void UpdateTrafficLink(
+        MachineVisualizationContext context,
+        string edgeId,
+        Vector3 sourceLocalPosition,
+        Vector3 targetLocalPosition,
+        DockerNetworkEdgePayload edgeData)
+    {
+        if (context.ContainerGroup == null || edgeData == null)
+        {
+            return;
+        }
+
+        DockerNetworkTrafficLink trafficLink = GetOrCreateTrafficLink(context, edgeId);
+        trafficLink.SetTrafficData(
+            sourceLocalPosition,
+            targetLocalPosition,
+            edgeData.rxBytesPerSecond,
+            edgeData.txBytesPerSecond);
+    }
+
+    private DockerNetworkTrafficLink GetOrCreateTrafficLink(MachineVisualizationContext context, string nodeId)
+    {
+        if (context.TrafficLinks.TryGetValue(nodeId, out DockerNetworkTrafficLink existingLink)
+            && existingLink != null)
+        {
+            return existingLink;
+        }
+
+        GameObject linkObject = new($"Docker Traffic - {nodeId}");
+        linkObject.transform.SetParent(context.ContainerGroup.transform, false);
+        DockerNetworkTrafficLink trafficLink = linkObject.AddComponent<DockerNetworkTrafficLink>();
+        context.TrafficLinks[nodeId] = trafficLink;
+        return trafficLink;
+    }
+
+    private void RemoveStaleTrafficLinks(MachineVisualizationContext context, HashSet<string> activeNodeIds)
+    {
+        List<string> staleIds = null;
+        foreach (string edgeId in context.TrafficLinks.Keys)
+        {
+            if (!activeNodeIds.Contains(edgeId))
+            {
+                staleIds ??= new List<string>();
+                staleIds.Add(edgeId);
+            }
+        }
+
+        if (staleIds == null)
+        {
+            return;
+        }
+
+        foreach (string staleId in staleIds)
+        {
+            DockerNetworkTrafficLink staleLink = context.TrafficLinks[staleId];
+            if (staleLink != null)
+            {
+                UnityEngine.Object.Destroy(staleLink.gameObject);
+            }
+
+            context.TrafficLinks.Remove(staleId);
+        }
+    }
+
     private static string ContainerNodeId(string containerId)
     {
         return $"container:{containerId}";
+    }
+
+    private static string DockerNetworkEdgeId(DockerNetworkEdgePayload edgeData)
+    {
+        string protocol = string.IsNullOrWhiteSpace(edgeData.protocol) ? "unknown" : edgeData.protocol;
+        return $"edge:{edgeData.sourceId}>{edgeData.targetId}:{protocol}";
     }
 
     private GameObject CreateMachineRoot(Transform parent)
@@ -345,6 +449,7 @@ public sealed class InfraSightMachineVisualizationManager
         public GameObject Root { get; }
         public GameObject ContainerGroup { get; }
         public Dictionary<string, GameObject> ContainerVisualizations { get; } = new();
+        public Dictionary<string, DockerNetworkTrafficLink> TrafficLinks { get; } = new();
         public ServerDataPayload LastPayload { get; set; }
         public Vector3 AnchorPosition { get; set; }
         public Quaternion AnchorRotation { get; set; }
@@ -357,5 +462,143 @@ public sealed class InfraSightMachineVisualizationManager
             AnchorPosition = root.transform.position;
             AnchorRotation = root.transform.rotation;
         }
+    }
+}
+
+public sealed class DockerNetworkTrafficLink : MonoBehaviour
+{
+    private static readonly Color IdleColor = new(0.05f, 0.95f, 1f, 0.92f);
+    private static readonly Color ReceiveColor = new(0.05f, 0.75f, 1f, 1f);
+    private static readonly Color TransmitColor = new(1f, 0.5f, 0.05f, 1f);
+
+    private LineRenderer edgeLine;
+    private float rxBytesPerSecond;
+    private float txBytesPerSecond;
+    private Vector3 fromLocalPosition;
+    private Vector3 toLocalPosition;
+
+    private void Awake()
+    {
+        EnsureInitialized();
+    }
+
+    private void Update()
+    {
+        if (edgeLine == null)
+        {
+            return;
+        }
+
+        SetDirectionalLine(edgeLine, fromLocalPosition, toLocalPosition, rxBytesPerSecond, txBytesPerSecond);
+    }
+
+    public void SetTrafficData(Vector3 fromLocalPosition, Vector3 toLocalPosition, float rxBps, float txBps)
+    {
+        EnsureInitialized();
+
+        this.fromLocalPosition = fromLocalPosition;
+        this.toLocalPosition = toLocalPosition;
+        rxBytesPerSecond = Mathf.Max(0f, rxBps);
+        txBytesPerSecond = Mathf.Max(0f, txBps);
+        Update();
+    }
+
+    private void EnsureInitialized()
+    {
+        RemoveParentLineRenderers();
+        edgeLine ??= CreateLine("Peer Traffic");
+    }
+
+    private LineRenderer CreateLine(string lineName)
+    {
+        var lineObject = new GameObject(lineName, typeof(LineRenderer));
+        lineObject.transform.SetParent(transform, false);
+        LineRenderer targetLine = lineObject.GetComponent<LineRenderer>();
+        ConfigureLine(targetLine);
+        return targetLine;
+    }
+
+    private static void ConfigureLine(LineRenderer targetLine)
+    {
+        targetLine.enabled = false;
+        targetLine.positionCount = 3;
+        targetLine.useWorldSpace = false;
+        targetLine.material = new Material(Shader.Find("Sprites/Default"));
+        targetLine.startWidth = 0.01f;
+        targetLine.endWidth = 0.006f;
+        targetLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        targetLine.receiveShadows = false;
+        targetLine.numCapVertices = 6;
+        targetLine.numCornerVertices = 4;
+    }
+
+    private void RemoveParentLineRenderers()
+    {
+        LineRenderer[] parentLines = GetComponents<LineRenderer>();
+        foreach (LineRenderer parentLine in parentLines)
+        {
+            parentLine.enabled = false;
+            if (Application.isPlaying)
+            {
+                Destroy(parentLine);
+            }
+            else
+            {
+                DestroyImmediate(parentLine);
+            }
+        }
+    }
+
+    private static void SetDirectionalLine(LineRenderer targetLine, Vector3 from, Vector3 to, float rxBps, float txBps)
+    {
+        float rate = Mathf.Max(0f, rxBps + txBps);
+        float pulse = (Mathf.Sin(Time.time * PulseSpeed(rate)) + 1f) * 0.5f;
+        float baseWidth = rate > 0f ? Mathf.Lerp(0.014f, 0.04f, Mathf.Clamp01(rate / (1024f * 1024f))) : 0.012f;
+        float width = baseWidth * (1f + pulse * 0.35f);
+        Color color = TrafficColor(rxBps, txBps);
+        color.a = rate > 0f ? Mathf.Lerp(color.a * 0.72f, color.a, pulse) : color.a;
+        Vector3 midpoint = CurvedMidpoint(from, to);
+
+        targetLine.startWidth = width;
+        targetLine.endWidth = width * 0.7f;
+        targetLine.startColor = new Color(color.r, color.g, color.b, color.a * 0.72f);
+        targetLine.endColor = color;
+        targetLine.SetPosition(0, from);
+        targetLine.SetPosition(1, midpoint);
+        targetLine.SetPosition(2, to);
+        targetLine.enabled = true;
+    }
+
+    private static float PulseSpeed(float totalRate)
+    {
+        return Mathf.Lerp(2.8f, 7f, Mathf.Clamp01(totalRate / (512f * 1024f)));
+    }
+
+    private static Vector3 CurvedMidpoint(Vector3 from, Vector3 to)
+    {
+        Vector3 delta = to - from;
+        if (delta.sqrMagnitude < 0.0001f)
+        {
+            return (from + to) * 0.5f + Vector3.up * 0.035f;
+        }
+
+        Vector3 side = Vector3.Cross(delta.normalized, Vector3.up);
+        if (side.sqrMagnitude < 0.0001f)
+        {
+            side = Vector3.right;
+        }
+
+        return (from + to) * 0.5f + side.normalized * 0.045f + Vector3.up * 0.035f;
+    }
+
+    private static Color TrafficColor(float rxBps, float txBps)
+    {
+        float total = Mathf.Max(0f, rxBps + txBps);
+        if (total <= 0f)
+        {
+            return IdleColor;
+        }
+
+        return Color.Lerp(ReceiveColor, TransmitColor, txBps / total);
     }
 }

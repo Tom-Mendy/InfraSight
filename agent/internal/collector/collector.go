@@ -12,4 +12,5 @@ type MachineCollector interface {
 
 type ContainerCollector interface {
 	CollectContainers(ctx context.Context) ([]models.Container, error)
+	CollectNetworkEdges(ctx context.Context) ([]models.NetworkEdge, error)
 }
