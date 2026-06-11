@@ -691,7 +691,19 @@ PrefabInstance:
       value: 0.5
       objectReference: {fileID: 0}
     - target: {fileID: 6861562069017475362, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
       propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6861562069017475362, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8171921875916847451, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}
@@ -776,6 +788,8 @@ MonoBehaviour:
   nameText: {fileID: 5358287163708068730}
   cpuText: {fileID: 6494692684943750779}
   ramText: {fileID: 7839663572084643024}
+  cpuChart: {fileID: 0}
+  ramChart: {fileID: 0}
 --- !u!224 &5236210147362847016 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 8331319620023948041, guid: 14f094c79e90cac43bd685ddd1d27a15, type: 3}

@@ -39,7 +39,7 @@ public sealed class InfraSightMachineVisualizationManager
         }
 
         GameObject feedbackObject = UnityEngine.Object.Instantiate(feedbackPrefab, rootTransform);
-        feedbackObject.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
+        feedbackObject.transform.SetPositionAndRotation(position, rotation);
         feedbackObject.SendMessage("SetConnectingMachine", machineName, SendMessageOptions.DontRequireReceiver);
 
         return feedbackObject;
@@ -49,7 +49,7 @@ public sealed class InfraSightMachineVisualizationManager
     {
         if (feedbackObject != null)
         {
-            feedbackObject.transform.SetPositionAndRotation(position, GetReadableRotation(rotation));
+            feedbackObject.transform.SetPositionAndRotation(position, rotation);
         }
     }
 
@@ -88,13 +88,12 @@ public sealed class InfraSightMachineVisualizationManager
             return;
         }
 
-        Quaternion readableRotation = GetReadableRotation(rotation);
-        root.transform.SetPositionAndRotation(position, readableRotation);
+        root.transform.SetPositionAndRotation(position, rotation);
         root.SendMessage("SetQrId", connection.MachineName, SendMessageOptions.DontRequireReceiver);
 
         GameObject containerGroup = new($"Docker Containers - {connection.MachineName}");
         containerGroup.transform.SetParent(rootTransform, false);
-        containerGroup.transform.SetPositionAndRotation(position, readableRotation);
+        containerGroup.transform.SetPositionAndRotation(position, rotation);
 
         var context = new MachineVisualizationContext(root, containerGroup);
         machineVisualizations[connection.Endpoint] = context;
@@ -115,13 +114,12 @@ public sealed class InfraSightMachineVisualizationManager
             return;
         }
 
-        Quaternion readableRotation = GetReadableRotation(rotation);
         context.AnchorPosition = position;
-        context.AnchorRotation = readableRotation;
+        context.AnchorRotation = rotation;
 
         if (context.Root != null)
         {
-            context.Root.transform.SetPositionAndRotation(position, readableRotation);
+            context.Root.transform.SetPositionAndRotation(position, rotation);
         }
 
         RecenterContainerRing(context);
@@ -160,8 +158,8 @@ public sealed class InfraSightMachineVisualizationManager
             return;
         }
 
-            context.ShowStoppedContainers = !context.ShowStoppedContainers;
-            RefreshContainers(context);
+        context.ShowStoppedContainers = !context.ShowStoppedContainers;
+        RefreshContainers(context);
     }
 
     private void RecenterContainerRing(string endpoint)
@@ -437,11 +435,6 @@ public sealed class InfraSightMachineVisualizationManager
 
         containerObject.transform.localScale = Vector3.one * 0.18f;
         return containerObject;
-    }
-
-    private static Quaternion GetReadableRotation(Quaternion rotation)
-    {
-        return rotation * Quaternion.Euler(0f, 180f, 0f);
     }
 
     private sealed class MachineVisualizationContext

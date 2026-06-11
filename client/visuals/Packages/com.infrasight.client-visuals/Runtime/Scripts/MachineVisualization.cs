@@ -127,7 +127,7 @@ public class MachineVisualization : MonoBehaviour
         dockerControlsRoot = new GameObject("Docker Controls", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         dockerControlsRoot.transform.SetParent(transform, false);
         dockerControlsRoot.transform.localPosition = new Vector3(0f, 0.85f, -0.05f);
-        dockerControlsRoot.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+        dockerControlsRoot.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
         dockerControlsRoot.transform.localScale = Vector3.one * 0.004f;
 
         RectTransform rootRect = dockerControlsRoot.GetComponent<RectTransform>();

@@ -356,7 +356,7 @@ public class AndroidArQrScanProvider : QrScanProviderBehaviour
         Vector3 center = trackedImage.transform.position;
         Vector3 toCamera = GetDirectionToCamera(center, trackedImage.transform.forward);
         Vector3 anchorPosition = center + toCamera * Mathf.Max(0f, trackedQrForwardOffsetMeters);
-        Quaternion anchorRotation = Quaternion.LookRotation(-toCamera, Vector3.up) * Quaternion.Euler(0f, 180f, 0f);
+        Quaternion anchorRotation = Quaternion.LookRotation(-toCamera, Vector3.up);
         return new Pose(anchorPosition, anchorRotation);
     }
 
